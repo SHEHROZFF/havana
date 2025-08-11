@@ -1,27 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import { clsx } from 'clsx'
-
-interface Service {
-  id: string
-  name: string
-  description: string
-  pricePerHour: number
-  category: ServiceCategory
-  isActive: boolean
-  cartId?: string
-  cartName?: string
-}
-
-interface FoodCart {
-  id: string
-  name: string
-}
+import { useGetServicesQuery, useCreateServiceMutation, useUpdateServiceMutation, useDeleteServiceMutation } from '../../../lib/api/servicesApi'
+import { useGetFoodCartsQuery } from '../../../lib/api/foodCartsApi'
+import type { Service } from '../../../types/booking'
+import { Plus, Users, DollarSign, ClipboardList, Star } from 'lucide-react'
 
 type ServiceCategory = 'STAFF' | 'KITCHEN' | 'SUPPORT' | 'MANAGEMENT' | 'SPECIAL'
 
@@ -34,11 +22,11 @@ const SERVICE_CATEGORIES = [
 ]
 
 const SERVICE_ICONS = {
-  STAFF: '👨‍🍳',
-  KITCHEN: '🍳',
-  SUPPORT: '🔧',
-  MANAGEMENT: '📋',
-  SPECIAL: '⭐'
+  STAFF: Users,
+  KITCHEN: Users,
+  SUPPORT: Users,
+  MANAGEMENT: ClipboardList,
+  SPECIAL: Star
 }
 
 const SERVICE_COLORS = {
@@ -50,9 +38,6 @@ const SERVICE_COLORS = {
 }
 
 export default function ServicesPage() {
-  const [services, setServices] = useState<Service[]>([])
-  const [foodCarts, setFoodCarts] = useState<FoodCart[]>([])
-  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingService, setEditingService] = useState<Service | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | 'all'>('all')
@@ -65,82 +50,54 @@ export default function ServicesPage() {
     isActive: true
   })
 
-  useEffect(() => {
-    fetchData()
-  }, [])
+  // RTK Query hooks
+  const {
+    data: services = [],
+    isLoading: servicesLoading,
+    error: servicesError,
+    refetch: refetchServices
+  } = useGetServicesQuery({
+    category: selectedCategory !== 'all' ? selectedCategory : undefined
+  })
 
-  const fetchData = async () => {
-    try {
-      // Fetch food carts
-      const cartsResponse = await fetch('/api/food-carts')
-      if (cartsResponse.ok) {
-        const cartsData = await cartsResponse.json()
-        setFoodCarts(cartsData)
-      }
+  const {
+    data: foodCarts = [],
+    isLoading: cartsLoading,
+    error: cartsError
+  } = useGetFoodCartsQuery()
 
-      // Fetch services
-      const servicesResponse = await fetch('/api/services')
-      if (servicesResponse.ok) {
-        const servicesData = await servicesResponse.json()
-        setServices(servicesData)
-      } else {
-        console.error('Failed to fetch services')
-        setServices([])
-      }
-    } catch (error) {
-      console.error('Error fetching data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const [createService, { isLoading: creating }] = useCreateServiceMutation()
+  const [updateService, { isLoading: updating }] = useUpdateServiceMutation()
+  const [deleteService, { isLoading: deleting }] = useDeleteServiceMutation()
+
+  const loading = servicesLoading || cartsLoading
 
   const cartOptions = [
     { value: '', label: 'Global Service (All Carts)' },
     ...foodCarts.map(cart => ({ value: cart.id, label: cart.name }))
   ]
 
-  const filteredServices = selectedCategory === 'all' ? services : services.filter(service => service.category === selectedCategory)
+  const filteredServices = services
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     try {
       const serviceData = {
-        ...formData,
+        name: formData.name,
+        description: formData.description,
         pricePerHour: parseFloat(formData.pricePerHour),
-        cartId: formData.cartId || null
+        category: formData.category,
+        cartId: formData.cartId || undefined,
+        isActive: formData.isActive
       }
 
       if (editingService) {
         // Update existing service
-        const response = await fetch(`/api/services/${editingService.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(serviceData)
-        })
-        
-        if (response.ok) {
-          const updatedService = await response.json()
-          setServices(prev => prev.map(service => 
-            service.id === editingService.id ? updatedService : service
-          ))
-        } else {
-          alert('Failed to update service. Please try again.')
-        }
+        await updateService({ id: editingService.id, ...serviceData }).unwrap()
       } else {
         // Create new service
-        const response = await fetch('/api/services', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(serviceData)
-        })
-        
-        if (response.ok) {
-          const newService = await response.json()
-          setServices(prev => [...prev, newService])
-        } else {
-          alert('Failed to create service. Please try again.')
-        }
+        await createService(serviceData).unwrap()
       }
       
       // Reset form
@@ -180,15 +137,7 @@ export default function ServicesPage() {
   const handleDelete = async (serviceId: string) => {
     if (confirm('Are you sure you want to delete this service?')) {
       try {
-        const response = await fetch(`/api/services/${serviceId}`, {
-          method: 'DELETE'
-        })
-        
-        if (response.ok) {
-          setServices(prev => prev.filter(service => service.id !== serviceId))
-        } else {
-          alert('Failed to delete service. Please try again.')
-        }
+        await deleteService(serviceId).unwrap()
       } catch (error) {
         console.error('Error deleting service:', error)
         alert('Error deleting service. Please try again.')
@@ -198,17 +147,7 @@ export default function ServicesPage() {
 
   const toggleServiceStatus = async (serviceId: string, isActive: boolean) => {
     try {
-      const response = await fetch(`/api/services/${serviceId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive })
-      })
-      
-      if (response.ok) {
-        setServices(prev => prev.map(service => 
-          service.id === serviceId ? { ...service, isActive } : service
-        ))
-      }
+      await updateService({ id: serviceId, isActive }).unwrap()
     } catch (error) {
       console.error('Error updating service status:', error)
     }
@@ -236,7 +175,8 @@ export default function ServicesPage() {
         </div>
         <div className="mt-4 lg:mt-0">
           <Button onClick={() => setShowForm(true)}>
-            ➕ Add New Service
+            <Plus className="w-4 h-4 mr-2" />
+            Add New Service
           </Button>
         </div>
       </div>
@@ -278,7 +218,9 @@ export default function ServicesPage() {
                   {services.filter(service => service.category === 'STAFF').length}
                 </p>
               </div>
-              <div className="text-3xl">👥</div>
+                              <div>
+                  <Users className="w-8 h-8 text-gray-400" />
+                </div>
             </div>
           </CardContent>
         </Card>
@@ -292,7 +234,9 @@ export default function ServicesPage() {
                   ${services.length > 0 ? (services.reduce((sum, s) => sum + s.pricePerHour, 0) / services.length).toFixed(0) : '0'}
                 </p>
               </div>
-              <div className="text-3xl">💰</div>
+                              <div>
+                  <DollarSign className="w-8 h-8 text-gray-400" />
+                </div>
             </div>
           </CardContent>
         </Card>
@@ -325,7 +269,10 @@ export default function ServicesPage() {
                     : 'bg-slate-600 text-gray-300 hover:bg-slate-500'
                 )}
               >
-                <span>{SERVICE_ICONS[category.value as ServiceCategory]}</span>
+                {(() => {
+                  const IconComponent = SERVICE_ICONS[category.value as ServiceCategory]
+                  return <IconComponent className="w-5 h-5" />
+                })()}
                 <span>{category.value}</span>
               </button>
             ))}
@@ -435,7 +382,8 @@ export default function ServicesPage() {
                 : `No ${selectedCategory} services found. Try a different category or add a new service.`}
             </p>
             <Button onClick={() => setShowForm(true)}>
-              ➕ Add Service
+              <Plus className="w-4 h-4 mr-2" />
+              Add Service
             </Button>
           </CardContent>
         </Card>
@@ -446,7 +394,10 @@ export default function ServicesPage() {
               <CardContent className="p-0">
                 {/* Service Header */}
                 <div className={`h-20 bg-gradient-to-r ${SERVICE_COLORS[service.category]} flex items-center justify-center`}>
-                  <span className="text-4xl">{SERVICE_ICONS[service.category]}</span>
+                  {(() => {
+                  const IconComponent = SERVICE_ICONS[service.category]
+                  return <IconComponent className="w-10 h-10" />
+                })()}
                 </div>
                 
                 <div className="p-6">

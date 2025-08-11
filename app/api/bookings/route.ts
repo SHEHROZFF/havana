@@ -16,12 +16,49 @@ export async function GET(request: NextRequest) {
     }
 
     if (date) {
-      where.bookingDate = new Date(date)
+      const parsedDate = new Date(date)
+      if (!isNaN(parsedDate.getTime())) {
+        where.bookingDate = parsedDate
+      }
     }
 
     if (status) {
       where.status = status
     }
+
+    // Add search functionality
+    const search = searchParams.get('search')
+    if (search) {
+      where.OR = [
+        {
+          customerName: {
+            contains: search,
+            mode: 'insensitive'
+          }
+        },
+        {
+          customerEmail: {
+            contains: search,
+            mode: 'insensitive'
+          }
+        },
+        {
+          cart: {
+            name: {
+              contains: search,
+              mode: 'insensitive'
+            }
+          }
+        }
+      ]
+    }
+
+    // Get pagination params
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '10')
+
+    // Get total count for pagination (before applying pagination)
+    const totalCount = await prisma.booking.count({ where })
 
     const bookings = await prisma.booking.findMany({
       where,
@@ -54,10 +91,42 @@ export async function GET(request: NextRequest) {
       },
       orderBy: {
         createdAt: 'desc'
-      }
+      },
+      skip: (page - 1) * limit,
+      take: limit
     })
 
-    return NextResponse.json(bookings)
+
+
+    // Transform bookings to match expected format
+    const transformedBookings = bookings.map((booking: any) => ({
+      id: booking.id,
+      customerName: booking.customerName,
+      customerEmail: booking.customerEmail,
+      customerPhone: booking.customerPhone,
+      eventType: booking.eventType,
+      eventDate: booking.bookingDate?.toISOString().split('T')[0] || '',
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      guestCount: booking.guestCount,
+      totalHours: booking.totalHours,
+      totalAmount: booking.totalAmount,
+      status: booking.status,
+      cartId: booking.cartId,
+      cartName: booking.cart?.name || '',
+      selectedItems: booking.bookingItems || [],
+      selectedServices: booking.bookingServices || [],
+      createdAt: booking.createdAt?.toISOString() || '',
+      updatedAt: booking.updatedAt?.toISOString() || ''
+    }))
+
+    return NextResponse.json({
+      bookings: transformedBookings,
+      total: totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: page,
+      limit: limit
+    })
   } catch (error) {
     console.error('Error fetching bookings:', error)
     return NextResponse.json(
@@ -73,7 +142,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const {
       userId,
-      cartId,
+      selectedCartId,
       bookingDate,
       startTime,
       endTime,
@@ -94,6 +163,51 @@ export async function POST(request: NextRequest) {
       selectedServices,
       paymentMethod
     } = body
+    
+    const cartId = selectedCartId // Map to expected field name
+
+    // Validate required fields
+    if (!cartId) {
+      return NextResponse.json(
+        { error: 'Cart ID is required' },
+        { status: 400 }
+      )
+    }
+
+    if (!customerName || !customerEmail || !customerPhone) {
+      return NextResponse.json(
+        { error: 'Customer information is required' },
+        { status: 400 }
+      )
+    }
+
+    if (!bookingDate || !startTime || !endTime) {
+      return NextResponse.json(
+        { error: 'Booking date and time are required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate and parse the booking date
+    const parsedBookingDate = new Date(bookingDate)
+    if (isNaN(parsedBookingDate.getTime())) {
+      return NextResponse.json(
+        { error: 'Invalid booking date provided' },
+        { status: 400 }
+      )
+    }
+
+    // Validate that the cart exists
+    const cartExists = await prisma.foodCart.findUnique({
+      where: { id: cartId }
+    })
+
+    if (!cartExists) {
+      return NextResponse.json(
+        { error: 'Selected cart not found' },
+        { status: 404 }
+      )
+    }
 
     // Start a database transaction
     const booking = await prisma.$transaction(async (tx: any) => {
@@ -101,7 +215,7 @@ export async function POST(request: NextRequest) {
       const existingBooking = await tx.booking.findFirst({
         where: {
           cartId,
-          bookingDate: new Date(bookingDate),
+          bookingDate: parsedBookingDate,
           OR: [
             {
               AND: [
@@ -135,8 +249,10 @@ export async function POST(request: NextRequest) {
       // Create the booking (without userId since users are not managed)
       const newBooking = await tx.booking.create({
         data: {
-          cartId,
-          bookingDate: new Date(bookingDate),
+          cart: {
+            connect: { id: cartId }
+          },
+          bookingDate: parsedBookingDate,
           startTime,
           endTime,
           totalHours,

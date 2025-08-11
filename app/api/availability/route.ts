@@ -15,11 +15,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Validate and parse the date
+    const parsedDate = new Date(date)
+    if (isNaN(parsedDate.getTime())) {
+      return NextResponse.json(
+        { error: 'Invalid date provided' },
+        { status: 400 }
+      )
+    }
+
     // Get existing bookings for the cart on the specified date
     const existingBookings = await prisma.booking.findMany({
       where: {
         cartId: cartId,
-        bookingDate: new Date(date),
+        bookingDate: parsedDate,
         status: {
           in: ['PENDING', 'CONFIRMED']
         }

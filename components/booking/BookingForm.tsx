@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { BookingFormData, BookingStep, BOOKING_STEPS } from '@/types/booking'
 import StepIndicator from '@/components/ui/StepIndicator'
+import OrderSummary from './OrderSummary'
 import CartSelectionStep from './steps/CartSelectionStep'
 import FoodSelectionStep from './steps/FoodSelectionStep'
 import ServicesSelectionStep from './steps/ServicesSelectionStep'
@@ -120,31 +121,31 @@ export default function BookingForm() {
       
       <div className="relative z-10">
         {/* Back Button */}
-        <div className="absolute top-4 left-4 lg:top-6 lg:left-6 z-20">
+        <div className="absolute top-[2vh] left-[2vh] lg:top-[1.5vw] lg:left-[1.5vw] z-20">
           <a
             href="https://havana.gr"
-            className="flex items-center space-x-2 px-3 py-2 lg:px-4 lg:py-2 bg-slate-800/80 hover:bg-slate-700/80 backdrop-blur-sm transition-all duration-300 text-sm lg:text-base border border-slate-600/50 hover:border-slate-500/50"
+            className="flex items-center space-x-[1vh] lg:space-x-[0.5vw] p-[1vh] lg:p-[0.5vw]  hover:bg-slate-700/80 transition-all duration-300 text-[1.8vh] lg:text-[0.9vw] border-2 border-white hover:border-slate-500/50 rounded-full"
           >
-            <svg className="w-4 h-4 lg:w-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-[2vh] h-[2vh] lg:w-[1.5vw] lg:h-[1.5vw] text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            <span className="text-white font-medium">Back to Havana.gr</span>
+            {/* <span className="text-white font-medium">Back to Havana.gr</span> */}
           </a>
         </div>
 
         {/* Header with Logo */}
-        <div className="text-center pt-8 pb-4">
-          <div className="flex justify-center mb-6">
+        <div className="text-center pt-[4vh] lg:pt-[1vw] pb-[2vh] lg:pb-[0.5vw]">
+          <div className="flex justify-center mb-[3vh] lg:mb-[0.8vw]">
             <img 
               src="https://havana.gr/wp-content/uploads/2025/05/cropped-Logo.png" 
               alt="Havana Logo" 
-              className="h-16 w-16 lg:h-20 lg:w-20 object-contain"
+              className="h-[8vh] w-[8vh] lg:h-[2.5vw] lg:w-[2.5vw] object-contain"
             />
           </div>
-          <h1 className="text-4xl lg:text-6xl font-bold text-white mb-2 tracking-wider">
+          <h1 className="text-[6vh] lg:text-[2.2vw] font-bold text-white mb-[1vh] lg:mb-[0.3vw] tracking-wider">
             BOOKING
           </h1>
-          <p className="text-red-500 text-sm lg:text-base font-medium tracking-wide">
+          <p className="text-red-500 text-[2vh] lg:text-[0.7vw] font-medium tracking-wide">
             {new Date().toLocaleDateString('en-US', {
               month: 'long',
               day: 'numeric',
@@ -154,18 +155,24 @@ export default function BookingForm() {
         </div>
 
         {/* Main Content */}
-        <div className="px-4 lg:px-8 pb-8">
-          <div className="max-w-4xl mx-auto">
-                    {/* Step Indicator */}
-        <StepIndicator
-          steps={[...BOOKING_STEPS]}
-          currentStep={currentStep}
-          completedSteps={completedSteps}
-        />
+        <div className="px-[2vh] lg:px-[1vw] pb-[4vh] lg:pb-[1vw]">
+          <div className="max-w-[160vh] lg:max-w-[45vw] mx-auto relative">
+            {/* Order Summary - Top Right */}
+            <OrderSummary 
+              formData={formData} 
+              className="hidden lg:block absolute top-0 right-[-25vw] w-[22vw] z-10"
+            />
+
+            {/* Step Indicator */}
+            <StepIndicator
+              steps={[...BOOKING_STEPS]}
+              currentStep={currentStep}
+              completedSteps={completedSteps}
+            />
 
             {/* Form Content */}
-            <div className="backdrop-blur-sm shadow-2xl border border-slate-600/50" style={{backgroundColor: '#22303d'}}>
-              <div className="p-6 lg:p-12">
+            <div className="backdrop-blur-sm shadow-2xl border border-slate-600/50 rounded-xl" style={{backgroundColor: '#22303d'}}>
+              <div className="p-[3vh] lg:p-[1vw]">
                 {renderCurrentStep()}
               </div>
             </div>

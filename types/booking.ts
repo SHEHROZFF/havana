@@ -3,10 +3,16 @@ export interface FoodCart {
   name: string
   description: string
   image?: string
-  location: string
+  location?: string
+  cuisine?: string
   pricePerHour: number
   capacity: number
   isActive: boolean
+  features?: string[]
+  createdAt?: string
+  updatedAt?: string
+  foodItems?: FoodItem[]
+  services?: Service[]
 }
 
 export interface FoodItem {
@@ -29,6 +35,46 @@ export interface Service {
   isActive: boolean
   cartId?: string
   cartName?: string
+}
+
+export interface Booking {
+  id: string
+  customerName: string
+  customerEmail: string
+  customerPhone: string
+  cartId: string
+  cartName?: string
+  eventDate: string
+  startTime: string
+  endTime: string
+  totalHours: number
+  totalAmount: number
+  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED'
+  eventType: string
+  guestCount: number
+  specialNotes?: string
+  createdAt: string
+  updatedAt: string
+  selectedItems?: {
+    itemId: string
+    quantity: number
+    price: number
+  }[]
+  selectedServices?: {
+    serviceId: string
+    quantity: number
+    hours: number
+    pricePerHour: number
+  }[]
+}
+
+export interface BookingService {
+  id: string
+  bookingId: string
+  serviceId: string
+  quantity: number
+  hours: number
+  totalAmount: number
 }
 
 export interface BookingFormData {

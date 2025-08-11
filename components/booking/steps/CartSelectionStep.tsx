@@ -1,9 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { BookingFormData, FoodCart } from '@/types/booking'
 import Button from '@/components/ui/Button'
 import { clsx } from 'clsx'
+import { useGetFoodCartsQuery } from '../../../lib/api/foodCartsApi'
+import { Truck, Settings, MapPin, Check, Users } from 'lucide-react'
+import { Swiper, SwiperSlide } from 'swiper/react'
+import { FreeMode, Mousewheel } from 'swiper/modules'
+import 'swiper/css'
+import 'swiper/css/free-mode'
 
 interface CartSelectionStepProps {
   formData: Partial<BookingFormData>
@@ -18,37 +24,14 @@ const HAVANA_VAN_IMAGES = [
 ]
 
 export default function CartSelectionStep({ formData, updateFormData, onNext }: CartSelectionStepProps) {
-  const [foodCarts, setFoodCarts] = useState<FoodCart[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [selectedCartId, setSelectedCartId] = useState(formData.selectedCartId || '')
 
-  useEffect(() => {
-    const fetchFoodCarts = async () => {
-      try {
-        setError(null)
-        const response = await fetch('/api/food-carts')
-        
-        if (response.ok) {
-          const carts = await response.json()
-          setFoodCarts(carts)
-          
-          if (carts.length === 0) {
-            setError('No food carts available. Please contact admin to add carts.')
-          }
-        } else {
-          setError('Failed to load food carts. Please try again later.')
-        }
-      } catch (error) {
-        console.error('Error fetching food carts:', error)
-        setError('Unable to connect to server. Please check your internet connection.')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchFoodCarts()
-  }, [])
+  // RTK Query hook
+  const {
+    data: foodCarts = [],
+    isLoading: loading,
+    error
+  } = useGetFoodCartsQuery()
 
   const handleCartSelect = (cartId: string) => {
     setSelectedCartId(cartId)
@@ -69,23 +52,26 @@ export default function CartSelectionStep({ formData, updateFormData, onNext }: 
 
   if (loading) {
     return (
-      <div className="text-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-teal-500 border-t-transparent mx-auto mb-4"></div>
-        <p className="text-white text-lg">Loading available carts...</p>
-        <p className="text-gray-400 text-sm mt-2">Fetching from admin settings</p>
+      <div className="text-center py-[8vh] lg:py-[6vw]">
+        <div className="animate-spin rounded-full h-[8vh] w-[8vh] lg:h-[4vw] lg:w-[4vw] border-4 border-teal-500 border-t-transparent mx-auto mb-[2vh] lg:mb-[1vw]"></div>
+        <p className="text-white text-[2.5vh] lg:text-[1.2vw]">Loading available carts...</p>
+        <p className="text-gray-400 text-[1.8vh] lg:text-[0.9vw] mt-[1vh] lg:mt-[0.5vw]">Fetching from admin settings</p>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="text-center py-12">
-        <div className="text-6xl mb-4">🚚</div>
-        <h3 className="text-xl font-semibold text-white mb-2">Unable to Load Carts</h3>
-        <p className="text-red-400 mb-4">{error}</p>
+      <div className="text-center py-[8vh] lg:py-[6vw]">
+        <div className="mb-[2vh] lg:mb-[1vw]">
+          <Truck className="w-[12vh] h-[12vh] lg:w-[6vw] lg:h-[6vw] text-gray-400 mx-auto" />
+        </div>
+        <h3 className="text-[2.8vh] lg:text-[1.4vw] font-semibold text-white mb-[1vh] lg:mb-[0.5vw]">Unable to Load Carts</h3>
+        <p className="text-red-400 mb-[2vh] lg:mb-[1vw] text-[2vh] lg:text-[1vw]">Failed to load food carts. Please try again.</p>
         <Button 
           onClick={() => window.location.reload()}
           variant="outline"
+          className="text-[2vh] lg:text-[1vw] px-[3vh] lg:px-[1.5vw] py-[1.5vh] lg:py-[0.8vw]"
         >
           🔄 Try Again
         </Button>
@@ -95,15 +81,18 @@ export default function CartSelectionStep({ formData, updateFormData, onNext }: 
 
   if (foodCarts.length === 0) {
     return (
-      <div className="text-center py-12">
-        <div className="text-6xl mb-4">🚛</div>
-        <h3 className="text-xl font-semibold text-white mb-2">No Carts Available</h3>
-        <p className="text-gray-400 mb-4">
+      <div className="text-center py-[8vh] lg:py-[6vw]">
+        <div className="text-[8vh] lg:text-[4vw] mb-[2vh] lg:mb-[1vw]">🚛</div>
+        <h3 className="text-[2.8vh] lg:text-[1.4vw] font-semibold text-white mb-[1vh] lg:mb-[0.5vw]">No Carts Available</h3>
+        <p className="text-gray-400 mb-[2vh] lg:mb-[1vw] text-[2vh] lg:text-[1vw] px-[2vh] lg:px-[1vw]">
           Our admin team is currently setting up food carts. Please check back soon!
         </p>
-        <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg p-4 max-w-md mx-auto">
-          <p className="text-yellow-400 text-sm">
-            🔧 Admin Panel Required: Food carts need to be added by administrators
+        <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg p-[2vh] lg:p-[1vw] max-w-[60vh] lg:max-w-[30vw] mx-auto">
+          <p className="text-yellow-400 text-[1.8vh] lg:text-[0.9vw]">
+            <div className="flex items-center justify-center">
+            <Settings className="w-[2.5vh] h-[2.5vh] lg:w-[1.2vw] lg:h-[1.2vw] mr-[1vh] lg:mr-[0.5vw]" />
+            Admin Panel Required: Food carts need to be added by administrators
+          </div>
           </p>
         </div>
       </div>
@@ -111,121 +100,193 @@ export default function CartSelectionStep({ formData, updateFormData, onNext }: 
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-[4vh] lg:space-y-[1.2vw]">
       {/* Header */}
-      <div className="text-center">
-        <h2 className="text-2xl lg:text-3xl font-bold text-white mb-2">
+      <div className="text-center space-y-[1vh] lg:space-y-[0.3vw]">
+        <div className="inline-flex items-center justify-center w-[6vh] h-[6vh] lg:w-[2vw] lg:h-[2vw] bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl mb-[2vh] lg:mb-[0.6vw]">
+          <Truck className="w-[3vh] h-[3vh] lg:w-[1vw] lg:h-[1vw] text-white" />
+        </div>
+        <h2 className="text-[3.5vh] lg:text-[1.4vw] font-bold text-white">
           Select Your Food Cart
         </h2>
-        <p className="text-gray-400 text-lg">
-          Page 1 of 5
-        </p>
-        <p className="text-teal-400 text-sm mt-1">
-          {foodCarts.length} cart{foodCarts.length !== 1 ? 's' : ''} available
+        <div className="flex items-center justify-center space-x-[2vh] lg:space-x-[0.6vw] text-[1.8vh] lg:text-[0.6vw] flex-wrap gap-[1vh] lg:gap-[0.3vw]">
+          <span className="bg-slate-700/50 px-[1.5vh] lg:px-[0.5vw] py-[0.5vh] lg:py-[0.2vw] rounded-full text-gray-300">
+            Step 1 of 5
+          </span>
+          <span className="text-teal-400 font-medium">
+            {foodCarts.length} cart{foodCarts.length !== 1 ? 's' : ''} available
+          </span>
+        </div>
+        <p className="text-gray-400 max-w-[80vh] lg:max-w-[30vw] mx-auto leading-relaxed text-[2vh] lg:text-[0.7vw] px-[2vh] lg:px-[0.8vw]">
+          Choose the perfect food cart for your event. Each cart comes with unique features and pricing.
         </p>
       </div>
 
-      {/* Cart Selection Grid */}
-      <div className="grid md:grid-cols-2 gap-6 lg:gap-8 max-w-4xl mx-auto">
-        {foodCarts.map((cart) => (
-          <div
-            key={cart.id}
-            className={clsx(
-              'cursor-pointer transition-all duration-300 border-2 p-6 lg:p-8 bg-slate-600/50 backdrop-blur-sm hover:bg-slate-600/70 transform hover:scale-105',
-              selectedCartId === cart.id 
-                ? 'border-teal-500 shadow-2xl shadow-teal-500/25 bg-slate-600/80 ring-2 ring-teal-500/30' 
-                : 'border-slate-500 hover:border-slate-400'
-            )}
-            onClick={() => handleCartSelect(cart.id)}
+      {/* Cart Selection Slider */}
+      <div className="relative max-w-[160vh] lg:max-w-[80vw] mx-auto">
+        <div className="overflow-hidden">
+          <Swiper
+            modules={[FreeMode, Mousewheel]}
+            spaceBetween={16}
+            slidesPerView="auto"
+            centeredSlides={false}
+            freeMode={{
+              enabled: true,
+              sticky: false,
+              momentumRatio: 0.25,
+              momentumVelocityRatio: 0.25
+            }}
+            mousewheel={{
+              forceToAxis: true,
+              sensitivity: 1
+            }}
+            grabCursor={true}
+            watchOverflow={true}
+            breakpoints={{
+              640: {
+                spaceBetween: 20,
+              },
+              1024: {
+                spaceBetween: 24,
+              },
+            }}
+            className="cart-swiper"
+            style={{
+              paddingLeft: '2vh',
+              paddingRight: '2vh',
+              paddingBottom: '2vh'
+            }}
           >
-            {/* Radio button */}
-            <div className="flex justify-end mb-4">
-              <div className={clsx(
-              'w-6 h-6 border-2 flex items-center justify-center transition-all duration-300',
-                selectedCartId === cart.id 
-                  ? 'bg-teal-500 border-teal-500 shadow-lg shadow-teal-500/50' 
-                  : 'border-gray-400 bg-transparent'
-              )}>
-                {selectedCartId === cart.id && (
-                  <div className="w-3 h-3 bg-white"></div>
-                )}
+            {foodCarts.map((cart) => (
+              <SwiperSlide key={cart.id} style={{ width: '24vh', minWidth: '24vh' }}>
+                <div
+                  className={clsx(
+                    'relative cursor-pointer transition-all duration-300 rounded-lg overflow-hidden group',
+                    'bg-slate-800 border shadow-sm hover:shadow-md',
+                    selectedCartId === cart.id 
+                      ? 'border-green-500 ring-2 ring-green-500/20' 
+                      : 'border-slate-600 hover:border-slate-500'
+                  )}
+                  onClick={() => handleCartSelect(cart.id)}
+                >
+            {/* Selection Badge */}
+            {selectedCartId === cart.id && (
+              <div className="absolute top-[0.8vh] lg:top-[0.4vw] right-[0.8vh] lg:right-[0.4vw] z-10">
+                <div className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] rounded-full bg-green-500 flex items-center justify-center">
+                  <Check className="w-[1.2vh] h-[1.2vh] lg:w-[0.6vw] lg:h-[0.6vw] text-white" />
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Cart image */}
-            <div className="flex justify-center mb-6">
-              <div className="w-full max-w-xs h-32 lg:h-40 bg-slate-500/30 overflow-hidden shadow-lg border border-slate-500/50">
-                <img 
-                  src={getCartImage(cart)}
-                  alt={cart.name}
-                  className="w-full h-full object-contain transition-transform duration-300 hover:scale-110"
-                  onError={(e) => {
-                    const img = e.target as HTMLImageElement
-                    img.src = HAVANA_VAN_IMAGES[1] // Fallback to second van image
-                  }}
-                />
+            {/* Cart Image */}
+            <div className="relative h-[12vh] lg:h-[6vw] bg-slate-700 overflow-hidden">
+              <img 
+                src={getCartImage(cart)}
+                alt={cart.name}
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                onError={(e) => {
+                  const img = e.target as HTMLImageElement
+                  img.src = HAVANA_VAN_IMAGES[1] // Fallback
+                }}
+              />
+              
+              {/* Price Badge */}
+              <div className="absolute top-[0.8vh] lg:top-[0.4vw] left-[0.8vh] lg:left-[0.4vw]">
+                <div className="bg-teal-600 px-[1vh] lg:px-[0.5vw] py-[0.4vh] lg:py-[0.2vw] rounded text-white text-[1.2vh] lg:text-[0.6vw] font-semibold">
+                  ${cart.pricePerHour}/hr
+                </div>
               </div>
             </div>
             
-            {/* Cart details */}
-            <div className="text-center space-y-3">
-              <h3 className="text-white font-bold text-xl lg:text-2xl">
-                {cart.name}
-              </h3>
+                        {/* Cart Details */}
+            <div className="p-[1.5vh] lg:p-[0.8vw] space-y-[1vh] lg:space-y-[0.5vw]">
+              {/* Cart Name */}
+              <div>
+                <h3 className="text-white font-semibold text-[1.6vh] lg:text-[0.8vw] leading-tight">
+                  {cart.name}
+                </h3>
+              </div>
               
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="bg-slate-500/30 rounded-lg p-2">
-                  <p className="text-teal-400 font-semibold">${cart.pricePerHour}</p>
-                  <p className="text-gray-400 text-xs">per hour</p>
+              {/* Stats Row */}
+              <div className="space-y-[0.6vh] lg:space-y-[0.3vw]">
+                <div className="flex items-center text-gray-300 text-[1.3vh] lg:text-[0.6vw]">
+                  <Users className="w-[1.4vh] h-[1.4vh] lg:w-[0.7vw] lg:h-[0.7vw] mr-[0.6vh] lg:mr-[0.3vw] text-teal-400" />
+                  <span>Serves up to {cart.capacity}</span>
                 </div>
-                <div className="bg-slate-500/30 rounded-lg p-2">
-                  <p className="text-white font-semibold">{cart.capacity}</p>
-                  <p className="text-gray-400 text-xs">capacity</p>
+                <div className="flex items-center text-gray-300 text-[1.3vh] lg:text-[0.6vw]">
+                  <MapPin className="w-[1.4vh] h-[1.4vh] lg:w-[0.7vw] lg:h-[0.7vw] mr-[0.6vh] lg:mr-[0.3vw] text-teal-400" />
+                  <span className="truncate">{cart.location}</span>
                 </div>
               </div>
               
-              <div className="bg-slate-500/20 rounded-lg p-3">
-                <p className="text-gray-300 text-sm leading-relaxed">
-                  {cart.description}
-                </p>
-                <p className="text-teal-400 text-xs mt-2 font-medium">
-                  📍 {cart.location}
-                </p>
-              </div>
+              {/* Description */}
+              <p className="text-gray-400 text-[1.2vh] lg:text-[0.6vw] leading-relaxed line-clamp-2">
+                {cart.description}
+              </p>
+              
+              {/* Features */}
+              {cart.features && cart.features.length > 0 && (
+                <div className="space-y-[0.6vh] lg:space-y-[0.3vw]">
+                  <div className="flex flex-wrap gap-[0.3vh] lg:gap-[0.15vw]">
+                    {cart.features.slice(0, 2).map((feature, index) => (
+                      <span 
+                        key={index}
+                        className="px-[0.8vh] lg:px-[0.4vw] py-[0.3vh] lg:py-[0.15vw] bg-slate-700 text-gray-300 text-[1vh] lg:text-[0.5vw] rounded border border-slate-600"
+                      >
+                        {feature}
+                      </span>
+                    ))}
+                    {cart.features.length > 2 && (
+                      <span className="px-[0.8vh] lg:px-[0.4vw] py-[0.3vh] lg:py-[0.15vw] bg-slate-600 text-gray-400 text-[1vh] lg:text-[0.5vw] rounded border border-slate-500">
+                        +{cart.features.length - 2}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-
-            {/* Selection indicator */}
-            {selectedCartId === cart.id && (
-              <div className="mt-4 flex items-center justify-center text-teal-400 bg-teal-500/20 rounded-lg py-2">
-                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span className="text-sm font-medium">Selected Cart</span>
-              </div>
-            )}
+                </div>
+              </SwiperSlide>
+            ))}
+          </Swiper>
+        </div>
+        
+        {/* Scroll Indicator */}
+        {foodCarts.length > 3 && (
+          <div className="flex justify-center mt-[2vh] lg:mt-[1vw] space-x-[1vh] lg:space-x-[0.5vw]">
+            <div className="text-gray-400 text-[1.4vh] lg:text-[0.7vw] flex items-center">
+              <span>Swipe to see more</span>
+              <svg className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] ml-[0.5vh] lg:ml-[0.3vw] animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </div>
           </div>
-        ))}
+        )}
       </div>
 
-      {/* Next Button */}
-      <div className="flex justify-center pt-8">
+      {/* Continue Section */}
+      <div className="text-center space-y-[1.5vh] lg:space-y-[0.8vw] pt-[2vh] lg:pt-[1vw] max-w-[160vh] lg:max-w-[80vw] mx-auto px-[2vh] lg:px-[0.8vw]">
         <Button
           onClick={handleNext}
           disabled={!selectedCartId}
-          size="lg"
-          className="px-16 py-4 text-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+          size="md"
+          className={clsx(
+            'px-[4vh] lg:px-[2vw] py-[1.2vh] lg:py-[0.6vw] text-[1.8vh] lg:text-[0.9vw] font-semibold transition-all duration-300 transform',
+            selectedCartId 
+              ? 'hover:scale-105 shadow-lg shadow-teal-500/25' 
+              : 'opacity-50 cursor-not-allowed'
+          )}
         >
-          {selectedCartId ? 'Continue to Menu' : 'Select a Cart'}
+          {selectedCartId ? (
+            <div className="flex items-center">
+              <Check className="w-[1.8vh] h-[1.8vh] lg:w-[0.9vw] lg:h-[0.9vw] mr-[0.8vh] lg:mr-[0.4vw]" />
+              Continue to Menu
+            </div>
+          ) : (
+            'Select a Cart to Continue'
+          )}
         </Button>
-      </div>
 
-      {/* Admin Info */}
-      <div className="text-center text-xs text-gray-500">
-        Cart availability and pricing managed by admin
       </div>
     </div>
   )

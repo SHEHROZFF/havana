@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { BookingFormData, Service } from '@/types/booking'
 import Button from '@/components/ui/Button'
 import { clsx } from 'clsx'
+import { useGetFoodCartByIdQuery } from '../../../lib/api/foodCartsApi'
+import { Users } from 'lucide-react'
 
 interface ServiceSelectionStepProps {
   formData: Partial<BookingFormData>
@@ -13,34 +15,18 @@ interface ServiceSelectionStepProps {
 }
 
 export default function ServiceSelectionStep({ formData, updateFormData, onNext, onPrevious }: ServiceSelectionStepProps) {
-  const [services, setServices] = useState<Service[]>([])
-  const [loading, setLoading] = useState(true)
   const [selectedServices, setSelectedServices] = useState(formData.selectedServices || [])
 
-  useEffect(() => {
-    const fetchServices = async () => {
-      if (!formData.selectedCartId) return
-      
-      setLoading(true)
-      try {
-        const response = await fetch(`/api/food-carts/${formData.selectedCartId}`)
-        if (response.ok) {
-          const cartData = await response.json()
-          setServices(cartData.services || [])
-        } else {
-          console.error('Failed to fetch services')
-          setServices([])
-        }
-      } catch (error) {
-        console.error('Error fetching services:', error)
-        setServices([])
-      } finally {
-        setLoading(false)
-      }
-    }
+  // Use RTK Query to fetch cart data with services
+  const {
+    data: cartData,
+    isLoading: loading,
+    error
+  } = useGetFoodCartByIdQuery(formData.selectedCartId!, {
+    skip: !formData.selectedCartId
+  })
 
-    fetchServices()
-  }, [formData.selectedCartId])
+  const services = cartData?.services || []
 
   const getServiceSelection = (serviceId: string) => {
     return selectedServices.find(item => item.serviceId === serviceId) || { quantity: 0, hours: 1 }
@@ -86,7 +72,9 @@ export default function ServiceSelectionStep({ formData, updateFormData, onNext,
   if (services.length === 0) {
     return (
       <div className="text-center py-16">
-        <div className="text-6xl mb-6">👥</div>
+                    <div className="mb-6">
+              <Users className="w-24 h-24 text-gray-400 mx-auto" />
+            </div>
         <h2 className="text-2xl font-bold text-white mb-4">No Services Available</h2>
         <p className="text-gray-400 mb-8">
           This food cart doesn't have any services configured yet.

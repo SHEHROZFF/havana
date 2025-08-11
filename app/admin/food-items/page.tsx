@@ -1,33 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import { clsx } from 'clsx'
-
-interface FoodItem {
-  id: string
-  name: string
-  description: string
-  price: number
-  image?: string
-  category: string
-  isAvailable: boolean
-  cartId: string
-  cartName?: string
-}
-
-interface FoodCart {
-  id: string
-  name: string
-}
+import { useGetFoodItemsQuery, useCreateFoodItemMutation, useUpdateFoodItemMutation, useDeleteFoodItemMutation } from '../../../lib/api/foodItemsApi'
+import { useGetFoodCartsQuery } from '../../../lib/api/foodCartsApi'
+import type { FoodItem, FoodCart } from '../../../types/booking'
+import { Plus, ChefHat } from 'lucide-react'
 
 export default function FoodItemsPage() {
-  const [foodItems, setFoodItems] = useState<FoodItem[]>([])
-  const [foodCarts, setFoodCarts] = useState<FoodCart[]>([])
-  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingItem, setEditingItem] = useState<FoodItem | null>(null)
   const [selectedCategory, setSelectedCategory] = useState('all')
@@ -42,40 +26,41 @@ export default function FoodItemsPage() {
     isAvailable: true
   })
 
-  useEffect(() => {
-    fetchData()
-  }, [])
+  // RTK Query hooks
+  const {
+    data: foodItems = [],
+    isLoading: itemsLoading,
+    error: itemsError,
+    refetch: refetchItems
+  } = useGetFoodItemsQuery({})
 
-  const fetchData = async () => {
-    try {
-      // Fetch food carts first
-      const cartsResponse = await fetch('/api/food-carts')
-      if (cartsResponse.ok) {
-        const cartsData = await cartsResponse.json()
-        setFoodCarts(cartsData)
-      }
+  const {
+    data: foodCarts = [],
+    isLoading: cartsLoading,
+    error: cartsError
+  } = useGetFoodCartsQuery()
 
-      // Fetch food items
-      const itemsResponse = await fetch('/api/food-items')
-      if (itemsResponse.ok) {
-        const itemsData = await itemsResponse.json()
-        // Add cartName from carts data
-        const itemsWithCartName = itemsData.map((item: FoodItem) => ({
-          ...item,
-          cartName: foodCarts.find(cart => cart.id === item.cartId)?.name
-        }))
-        setFoodItems(itemsWithCartName)
-      } else {
-        console.error('Failed to fetch food items')
-        setFoodItems([])
-      }
-    } catch (error) {
-      console.error('Error fetching data:', error)
-    } finally {
-      setLoading(false)
-    }
+  const [createFoodItem, { isLoading: creating }] = useCreateFoodItemMutation()
+  const [updateFoodItem, { isLoading: updating }] = useUpdateFoodItemMutation()
+  const [deleteFoodItem, { isLoading: deleting }] = useDeleteFoodItemMutation()
+
+  const loading = itemsLoading || cartsLoading
+
+  const resetForm = () => {
+    setShowForm(false)
+    setEditingItem(null)
+    setFormData({
+      name: '',
+      description: '',
+      price: '',
+      image: '',
+      category: '',
+      cartId: '',
+      isAvailable: true
+    })
   }
 
+  // Computed data from RTK Query
   const categories = ['all', ...Array.from(new Set(foodItems.map(item => item.category)))]
   const cartOptions = [
     { value: '', label: 'Select a food cart' },
@@ -89,7 +74,13 @@ export default function FoodItemsPage() {
     { value: 'Desserts', label: 'Desserts' }
   ]
 
-  const filteredItems = foodItems.filter(item => {
+  // Enhanced food items with cart names
+  const enhancedFoodItems = foodItems.map(item => ({
+    ...item,
+    cartName: foodCarts.find(cart => cart.id === item.cartId)?.name || 'Unknown Cart'
+  }))
+
+  const filteredItems = enhancedFoodItems.filter(item => {
     const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory
     const matchesCart = selectedCart === 'all' || item.cartId === selectedCart
     return matchesCategory && matchesCart
@@ -100,48 +91,25 @@ export default function FoodItemsPage() {
     
     try {
       const itemData = {
-        ...formData,
-        price: parseFloat(formData.price)
+        name: formData.name,
+        description: formData.description,
+        price: parseFloat(formData.price),
+        image: formData.image,
+        category: formData.category,
+        cartId: formData.cartId,
+        isAvailable: formData.isAvailable
       }
 
       if (editingItem) {
-        // Update existing item via API
-        const response = await fetch(`/api/food-items/${editingItem.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(itemData)
-        })
-
-        if (response.ok) {
-          const updatedItem = await response.json()
-          setFoodItems(prev => prev.map(item => 
-            item.id === editingItem.id ? updatedItem : item
-          ))
-        } else {
-          throw new Error('Failed to update item')
-        }
+        // Update existing item via RTK Query
+        await updateFoodItem({ id: editingItem.id, ...itemData }).unwrap()
       } else {
-        // Create new item via API
-        const response = await fetch('/api/food-items', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(itemData)
-        })
-
-        if (response.ok) {
-          const newItem = await response.json()
-          setFoodItems(prev => [...prev, newItem])
-        } else {
-          throw new Error('Failed to create item')
-        }
+        // Create new item via RTK Query
+        await createFoodItem(itemData).unwrap()
       }
       
       // Reset form
-      setShowForm(false)
+      resetForm()
       setEditingItem(null)
       setFormData({
         name: '',
@@ -175,15 +143,7 @@ export default function FoodItemsPage() {
   const handleDelete = async (itemId: string) => {
     if (confirm('Are you sure you want to delete this food item?')) {
       try {
-        const response = await fetch(`/api/food-items/${itemId}`, {
-          method: 'DELETE'
-        })
-
-        if (response.ok) {
-          setFoodItems(prev => prev.filter(item => item.id !== itemId))
-        } else {
-          throw new Error('Failed to delete item')
-        }
+        await deleteFoodItem(itemId).unwrap()
       } catch (error) {
         console.error('Error deleting item:', error)
         alert('Failed to delete food item. Please try again.')
@@ -193,22 +153,7 @@ export default function FoodItemsPage() {
 
   const toggleItemAvailability = async (itemId: string, isAvailable: boolean) => {
     try {
-      const response = await fetch(`/api/food-items/${itemId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ isAvailable })
-      })
-
-      if (response.ok) {
-        const updatedItem = await response.json()
-        setFoodItems(prev => prev.map(item => 
-          item.id === itemId ? updatedItem : item
-        ))
-      } else {
-        throw new Error('Failed to update availability')
-      }
+      await updateFoodItem({ id: itemId, isAvailable }).unwrap()
     } catch (error) {
       console.error('Error updating availability:', error)
       alert('Failed to update item availability. Please try again.')
@@ -237,7 +182,8 @@ export default function FoodItemsPage() {
         </div>
         <div className="mt-4 lg:mt-0">
           <Button onClick={() => setShowForm(true)}>
-            ➕ Add New Item
+            <Plus className="w-4 h-4 mr-2" />
+            Add New Item
           </Button>
         </div>
       </div>
@@ -264,11 +210,7 @@ export default function FoodItemsPage() {
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
             />
-            <div className="flex items-end">
-              <Button variant="outline" className="w-full">
-                📊 Export Menu
-              </Button>
-            </div>
+
           </div>
         </CardContent>
       </Card>
@@ -486,7 +428,8 @@ export default function FoodItemsPage() {
                 : 'Get started by adding your first food item.'}
             </p>
             <Button onClick={() => setShowForm(true)}>
-              ➕ Add Food Item
+              <Plus className="w-4 h-4 mr-2" />
+              Add Food Item
             </Button>
           </CardContent>
         </Card>

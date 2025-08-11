@@ -2,15 +2,22 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAppDispatch } from '../../../lib/hooks'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
+import { useAdminLoginMutation } from '../../../lib/api/authApi'
+import { setCredentials as setAuthCredentials } from '../../../lib/slices/authSlice'
+
 import { isAuthenticated } from '@/lib/auth'
 
 export default function AdminLogin() {
   const [credentials, setCredentials] = useState({ email: 'admin@havana.com', password: 'admin123' })
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
+  const dispatch = useAppDispatch()
+  
+  // RTK Query mutation
+  const [adminLogin, { isLoading: loading }] = useAdminLoginMutation()
 
   // Check if already authenticated
   useEffect(() => {
@@ -21,38 +28,19 @@ export default function AdminLogin() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
     setError('')
 
-
-
     try {
-      const response = await fetch('/api/admin/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(credentials)
-      })
-
-      const data = await response.json()
-
-
-      if (response.ok) {
-
-        localStorage.setItem('admin_token', data.token)
-        
-        // Small delay to ensure token is stored
-        setTimeout(() => {
-
-          router.push('/admin')
-        }, 100)
-      } else {
-        setError(data.error || 'Login failed')
-      }
-    } catch (error) {
+      const result = await adminLogin(credentials as any).unwrap()
+      
+      // Store credentials in Redux store
+      dispatch(setAuthCredentials({ token: result.token }))
+      
+      // Navigate to admin dashboard
+      router.push('/admin')
+    } catch (error: any) {
       console.error('Login error:', error)
-      setError('Network error. Please try again.')
-    } finally {
-      setLoading(false)
+      setError(error.data?.message || 'Login failed. Please try again.')
     }
   }
 
@@ -91,7 +79,7 @@ export default function AdminLogin() {
 
             <Input
               type="email"
-              label="Email Address"
+              label="Email"
               value={credentials.email}
               onChange={(e) => setCredentials(prev => ({ ...prev, email: e.target.value }))}
               placeholder="admin@havana.com"
@@ -121,7 +109,7 @@ export default function AdminLogin() {
           <div className="mt-6 pt-6 border-t border-slate-600">
             <div className="text-center">
               <div className="bg-teal-500/20 border border-teal-500/50 rounded-lg p-4 mb-4">
-                <p className="text-teal-400 text-sm font-medium">Demo Credentials</p>
+                <p className="text-teal-400 text-sm font-medium">Admin Access</p>
                 <p className="text-gray-300 text-xs mt-1">
                   Email: admin@havana.com<br />
                   Password: admin123

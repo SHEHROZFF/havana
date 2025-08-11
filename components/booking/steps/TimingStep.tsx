@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { BookingFormData } from '@/types/booking'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
+import { useGetAvailabilityQuery } from '../../../lib/api/bookingsApi'
 
 interface TimingStepProps {
   formData: Partial<BookingFormData>
@@ -16,10 +17,25 @@ export default function TimingStep({ formData, updateFormData, onNext, onPreviou
   const [selectedDate, setSelectedDate] = useState(formData.bookingDate || '')
   const [startTime, setStartTime] = useState(formData.startTime || '')
   const [endTime, setEndTime] = useState(formData.endTime || '')
-  const [loading, setLoading] = useState(false)
-  const [conflicts, setConflicts] = useState<any[]>([])
   
   const today = new Date().toISOString().split('T')[0]
+
+  // Use RTK Query to check availability
+  const {
+    data: availabilityData,
+    isLoading: loading,
+    error
+  } = useGetAvailabilityQuery(
+    { 
+      cartId: formData.selectedCartId!, 
+      date: selectedDate 
+    },
+    { 
+      skip: !formData.selectedCartId || !selectedDate 
+    }
+  )
+
+  const conflicts = availabilityData?.bookedSlots || []
 
   // Calculate total hours
   const calculateTotalHours = (start: string, end: string) => {
@@ -46,30 +62,7 @@ export default function TimingStep({ formData, updateFormData, onNext, onPreviou
 
   const timeOptions = generateTimeOptions()
 
-  // Check for conflicts when date/time changes
-  useEffect(() => {
-    const checkAvailability = async () => {
-      if (!selectedDate || !formData.selectedCartId) return
-      
-      setLoading(true)
-      try {
-        const response = await fetch(`/api/availability?cartId=${formData.selectedCartId}&date=${selectedDate}`)
-        if (response.ok) {
-          const availability = await response.json()
-          setConflicts(availability.bookedSlots || [])
-        } else {
-          setConflicts([])
-        }
-      } catch (error) {
-        console.error('Error checking availability:', error)
-        setConflicts([])
-      } finally {
-        setLoading(false)
-      }
-    }
 
-    checkAvailability()
-  }, [selectedDate, formData.selectedCartId])
 
   // Check if selected time conflicts with existing bookings
   const hasConflict = () => {

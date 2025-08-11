@@ -1,10 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { BookingFormData, Service, ServiceCategory } from '@/types/booking'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { clsx } from 'clsx'
+import { useGetServicesQuery } from '../../../lib/api/servicesApi'
+import { Users, ChefHat, Wrench, ClipboardList, Star, Store, Check } from 'lucide-react'
+import { Swiper, SwiperSlide } from 'swiper/react'
+import { FreeMode, Mousewheel } from 'swiper/modules'
+import 'swiper/css'
+import 'swiper/css/free-mode'
 
 interface ServicesSelectionStepProps {
   formData: Partial<BookingFormData>
@@ -14,11 +20,11 @@ interface ServicesSelectionStepProps {
 }
 
 const SERVICE_ICONS = {
-  STAFF: '👨‍🍳',
-  KITCHEN: '🍳',
-  SUPPORT: '🔧',
-  MANAGEMENT: '📋',
-  SPECIAL: '⭐'
+  STAFF: Users,
+  KITCHEN: ChefHat,
+  SUPPORT: Wrench,
+  MANAGEMENT: ClipboardList,
+  SPECIAL: Star
 }
 
 const SERVICE_COLORS = {
@@ -30,39 +36,37 @@ const SERVICE_COLORS = {
 }
 
 export default function ServicesSelectionStep({ formData, updateFormData, onNext, onPrevious }: ServicesSelectionStepProps) {
-  const [services, setServices] = useState<Service[]>([])
-  const [loading, setLoading] = useState(true)
   const [selectedServices, setSelectedServices] = useState(formData.selectedServices || [])
   const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | 'all'>('all')
-  const [estimatedHours, setEstimatedHours] = useState(formData.totalHours || 4)
+  const swiperRef = useRef<any>(null)
 
-  useEffect(() => {
-    const fetchServices = async () => {
-      if (!formData.selectedCartId) return
-      
-      setLoading(true)
-      try {
-        const response = await fetch(`/api/services?cartId=${formData.selectedCartId}`)
-        if (response.ok) {
-          const servicesData = await response.json()
-          setServices(servicesData)
-        } else {
-          console.error('Failed to fetch services')
-          setServices([])
-        }
-      } catch (error) {
-        console.error('Error fetching services:', error)
-        setServices([])
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchServices()
-  }, [formData.selectedCartId])
+  // RTK Query hook
+  const {
+    data: services = [],
+    isLoading: loading,
+    error
+  } = useGetServicesQuery({ 
+    cartId: formData.selectedCartId 
+  }, {
+    skip: !formData.selectedCartId
+  })
 
   const categories: (ServiceCategory | 'all')[] = ['all', 'STAFF', 'KITCHEN', 'SUPPORT', 'MANAGEMENT', 'SPECIAL']
-  const filteredServices = selectedCategory === 'all' ? services : services.filter(service => service.category === selectedCategory)
+  
+  const filteredServices = useMemo(() => {
+    return selectedCategory === 'all' ? services : services.filter(service => service.category === selectedCategory)
+  }, [selectedCategory, services])
+
+  // Reset swiper position when category changes
+  useEffect(() => {
+    if (swiperRef.current && swiperRef.current.swiper) {
+      setTimeout(() => {
+        if (swiperRef.current && swiperRef.current.swiper) {
+          swiperRef.current.swiper.slideTo(0, 500)
+        }
+      }, 100)
+    }
+  }, [selectedCategory])
 
   const getServiceQuantity = (serviceId: string) => {
     const service = selectedServices.find(s => s.serviceId === serviceId)
@@ -71,10 +75,10 @@ export default function ServicesSelectionStep({ formData, updateFormData, onNext
 
   const getServiceHours = (serviceId: string) => {
     const service = selectedServices.find(s => s.serviceId === serviceId)
-    return service ? service.hours : estimatedHours
+    return service ? service.hours : 4
   }
 
-  const updateServiceSelection = (serviceId: string, quantity: number, pricePerHour: number, hours?: number) => {
+  const updateServiceSelection = (serviceId: string, quantity: number, pricePerHour: number, hours: number = 4) => {
     let newSelectedServices = [...selectedServices]
     const existingIndex = newSelectedServices.findIndex(s => s.serviceId === serviceId)
     
@@ -83,11 +87,10 @@ export default function ServicesSelectionStep({ formData, updateFormData, onNext
         newSelectedServices.splice(existingIndex, 1)
       }
     } else {
-      const serviceHours = hours || estimatedHours
       if (existingIndex > -1) {
-        newSelectedServices[existingIndex] = { serviceId, quantity, hours: serviceHours, pricePerHour }
+        newSelectedServices[existingIndex] = { serviceId, quantity, hours, pricePerHour }
       } else {
-        newSelectedServices.push({ serviceId, quantity, hours: serviceHours, pricePerHour })
+        newSelectedServices.push({ serviceId, quantity, hours, pricePerHour })
       }
     }
     
@@ -109,212 +112,281 @@ export default function ServicesSelectionStep({ formData, updateFormData, onNext
 
   if (loading) {
     return (
-      <div className="text-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-teal-500 border-t-transparent mx-auto mb-4"></div>
-        <p className="text-white text-lg">Loading services...</p>
+      <div className="text-center py-[8vh] lg:py-[4vw]">
+        <div className="animate-spin rounded-full h-[8vh] w-[8vh] lg:h-[4vw] lg:w-[4vw] border-4 border-teal-500 border-t-transparent mx-auto mb-[2vh] lg:mb-[1vw]"></div>
+        <p className="text-white text-[2.5vh] lg:text-[1.2vw]">Loading services...</p>
       </div>
     )
   }
 
-  const totalServicesAmount = selectedServices.reduce((sum, service) => sum + (service.quantity * service.hours * service.pricePerHour), 0)
-  const totalServicesCount = selectedServices.reduce((sum, service) => sum + service.quantity, 0)
-
-  return (
-    <div className="space-y-8">
-      <div className="text-center">
-        <h2 className="text-2xl lg:text-3xl font-bold text-white mb-2">
-          Select Additional Services
-        </h2>
-        <p className="text-gray-400 text-lg">
-          Page 3 of 6
+  if (services.length === 0) {
+    return (
+      <div className="text-center py-[8vh] lg:py-[4vw]">
+        <div className="text-[6vh] lg:text-[3vw] mb-[2vh] lg:mb-[1vw]">🎪</div>
+        <h2 className="text-[3vh] lg:text-[1.5vw] font-bold text-white mb-[2vh] lg:mb-[1vw]">No Services Available</h2>
+        <p className="text-gray-400 mb-[4vh] lg:mb-[2vw] text-[2vh] lg:text-[1vw] px-[4vh] lg:px-[2vw]">
+          This food cart doesn't have any additional services set up yet.
+          <br />
+          You can proceed without selecting any services.
         </p>
-        <p className="text-teal-400 text-sm mt-1">
-          Enhance your event with professional staff and services
-        </p>
-      </div>
-
-      {/* Estimated Hours Input */}
-      <div className="bg-slate-600/50 backdrop-blur-sm rounded-xl p-6">
-        <h3 className="text-xl font-bold text-white mb-4">Service Duration</h3>
-        <div className="grid md:grid-cols-2 gap-4">
-          <Input
-            label="Estimated Hours for Services"
-            type="number"
-            value={estimatedHours.toString()}
-            onChange={(e) => setEstimatedHours(parseInt(e.target.value) || 4)}
-            min="1"
-            max="24"
-            helperText="Default hours for all services (you can customize per service)"
-          />
-          <div className="flex items-end">
-            <Button
-              variant="outline"
-              onClick={() => {
-                selectedServices.forEach(service => {
-                  updateServiceSelection(service.serviceId, service.quantity, service.pricePerHour, estimatedHours)
-                })
-              }}
-              className="w-full"
-            >
-              Apply to All Services
-            </Button>
-          </div>
+        <div className="flex justify-between max-w-[160vh] lg:max-w-[80vw] mx-auto px-[2vh] lg:px-[1vw]">
+          <Button
+            variant="outline"
+            onClick={onPrevious}
+            size="md"
+            className="px-[3vh] lg:px-[1.5vw] py-[1vh] lg:py-[0.5vw] text-[1.6vh] lg:text-[0.8vw] font-semibold"
+          >
+            Previous
+          </Button>
+          <Button
+            onClick={handleNext}
+            size="md"
+            className="px-[3vh] lg:px-[1.5vw] py-[1vh] lg:py-[0.5vw] text-[1.6vh] lg:text-[0.8vw] font-semibold"
+          >
+            Skip Services
+          </Button>
         </div>
       </div>
+    )
+  }
 
-      {/* Category Filter */}
-      <div className="flex flex-wrap gap-3 justify-center">
+  return (
+    <div className="space-y-[3vh] lg:space-y-[1vw]">
+      <div className="text-center">
+        <h2 className="text-[3.5vh] lg:text-[1.4vw] font-bold text-white mb-[1vh] lg:mb-[0.3vw]">
+          Select Additional Services
+        </h2>
+        <p className="text-gray-400 text-[2vh] lg:text-[0.7vw]">
+          Step 3 of 5
+        </p>
+      </div>
+
+      {/* Category Filter Tabs */}
+      <div className="flex flex-wrap gap-[1.5vh] lg:gap-[0.5vw] justify-center px-[2vh] lg:px-[0.8vw]">
         {categories.map((category) => (
           <button
             key={category}
             onClick={() => setSelectedCategory(category)}
             className={clsx(
-              'px-6 py-2 rounded-full font-medium transition-all duration-300 flex items-center space-x-2',
+              'px-[3vh] lg:px-[1vw] py-[1vh] lg:py-[0.3vw] rounded-full font-medium transition-all duration-300 text-[1.8vh] lg:text-[0.6vw] flex items-center space-x-[1vh] lg:space-x-[0.3vw]',
               selectedCategory === category
                 ? 'bg-teal-500 text-white shadow-lg'
                 : 'bg-slate-600 text-gray-300 hover:bg-slate-500'
             )}
           >
-            <span>{category === 'all' ? '🏪' : SERVICE_ICONS[category as ServiceCategory]}</span>
+            {category === 'all' ? (
+              <Store className="w-[2vh] h-[2vh] lg:w-[0.8vw] lg:h-[0.8vw]" />
+            ) : (
+              (() => {
+                const IconComponent = SERVICE_ICONS[category as ServiceCategory]
+                return <IconComponent className="w-[2vh] h-[2vh] lg:w-[0.8vw] lg:h-[0.8vw]" />
+              })()
+            )}
             <span>{category === 'all' ? 'All Services' : category}</span>
           </button>
         ))}
       </div>
 
-      {/* Services Grid */}
-      {filteredServices.length === 0 ? (
-        <div className="text-center py-16">
-          <div className="text-6xl mb-6">🎪</div>
-          <h2 className="text-2xl font-bold text-white mb-4">No Services Available</h2>
-          <p className="text-gray-400 mb-8">
-            No additional services are available for this food cart.
-            <br />
-            You can proceed without selecting any services.
-          </p>
-        </div>
-      ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredServices.map((service) => {
-            const quantity = getServiceQuantity(service.id)
-            const hours = getServiceHours(service.id)
-            const totalPrice = quantity * hours * service.pricePerHour
-            
-            return (
-              <div key={service.id} className="bg-slate-600/50 backdrop-blur-sm rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
-                <div className={`h-20 bg-gradient-to-r ${SERVICE_COLORS[service.category]} flex items-center justify-center`}>
-                  <span className="text-4xl">{SERVICE_ICONS[service.category]}</span>
-                </div>
-                
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-3">
-                    <h3 className="text-white font-bold text-lg">{service.name}</h3>
-                    <span className="text-xs bg-teal-500 text-white px-2 py-1 rounded-full">
-                      {service.category}
-                    </span>
-                  </div>
-                  
-                  <p className="text-gray-300 text-sm mb-4 line-clamp-2">
-                    {service.description}
-                  </p>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-teal-400 font-bold text-xl">
-                        ${service.pricePerHour}/hr
-                      </span>
-                    </div>
-                    
-                    {/* Quantity Controls */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-300 text-sm">Staff Count:</span>
-                      <div className="flex items-center space-x-3">
-                        <button
-                          onClick={() => updateServiceSelection(service.id, Math.max(0, quantity - 1), service.pricePerHour)}
-                          disabled={quantity === 0}
-                          className="w-8 h-8 bg-slate-500 text-white rounded-full flex items-center justify-center hover:bg-slate-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          -
-                        </button>
-                        <span className="w-8 text-center font-bold text-white">{quantity}</span>
-                        <button
-                          onClick={() => updateServiceSelection(service.id, quantity + 1, service.pricePerHour)}
-                          className="w-8 h-8 bg-teal-500 text-white rounded-full flex items-center justify-center hover:bg-teal-600 transition-colors"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {/* Hours Input for Selected Services */}
-                    {quantity > 0 && (
-                      <div className="space-y-2 pt-2 border-t border-slate-500">
-                        <Input
-                          label="Hours needed"
-                          type="number"
-                          value={hours.toString()}
-                          onChange={(e) => updateServiceHours(service.id, parseInt(e.target.value) || estimatedHours)}
-                          min="1"
-                          max="24"
-                          className="text-sm"
-                        />
-                        <div className="text-right text-teal-400 font-medium">
-                          Total: ${totalPrice.toFixed(2)}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Services Summary */}
-      {selectedServices.length > 0 && (
-        <div className="bg-teal-500/20 border border-teal-500/50 rounded-xl p-6">
-          <h3 className="font-bold text-xl text-white mb-4">Services Summary</h3>
-          <div className="space-y-2 mb-4">
-            {selectedServices.map((selectedService, index) => {
-              const service = services.find(s => s.id === selectedService.serviceId)
-              return (
-                <div key={index} className="flex justify-between items-center text-sm">
-                  <span className="text-gray-300">
-                    {selectedService.quantity}x {service?.name} ({selectedService.hours}h)
-                  </span>
-                  <span className="text-teal-400 font-medium">
-                    ${(selectedService.quantity * selectedService.hours * selectedService.pricePerHour).toFixed(2)}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-          <div className="flex justify-between items-center border-t border-teal-500/30 pt-3">
-            <span className="text-gray-300">{totalServicesCount} staff members</span>
-            <span className="text-2xl font-bold text-teal-400">
-              Services Total: ${totalServicesAmount.toFixed(2)}
+      {/* Horizontal Slider for Selected Category */}
+      <div className="relative">
+        <div className="flex items-center justify-between px-[2vh] lg:px-[1vw] mb-[2vh] lg:mb-[0.8vw]">
+          <div className="flex items-center space-x-[1.5vh] lg:space-x-[0.5vw]">
+            <h3 className="text-[2.2vh] lg:text-[0.9vw] font-medium text-gray-300">
+              {selectedCategory === 'all' ? 'All Services' : selectedCategory}
+            </h3>
+            <span className="bg-teal-500/20 text-teal-400 px-[1.5vh] lg:px-[0.5vw] py-[0.5vh] lg:py-[0.2vw] rounded-full text-[1.4vh] lg:text-[0.6vw] font-medium">
+              {filteredServices.length} services
             </span>
           </div>
+          {filteredServices.length > 4 && (
+            <div className="text-gray-400 text-[1.4vh] lg:text-[0.6vw] flex items-center space-x-[0.5vh] lg:space-x-[0.2vw]">
+              <span>Swipe to see more</span>
+              <svg className="w-[2vh] h-[2vh] lg:w-[0.8vw] lg:h-[0.8vw] animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </div>
+          )}
         </div>
-      )}
+
+        <div className="relative max-w-[160vh] lg:max-w-[80vw] mx-auto">
+          <div className="overflow-hidden">
+            <Swiper
+              ref={swiperRef}
+              modules={[FreeMode, Mousewheel]}
+              spaceBetween={16}
+              slidesPerView="auto"
+              centeredSlides={false}
+              freeMode={{
+                enabled: true,
+                sticky: false,
+                momentumRatio: 0.25,
+                momentumVelocityRatio: 0.25
+              }}
+              mousewheel={{
+                forceToAxis: true,
+                sensitivity: 1
+              }}
+              grabCursor={true}
+              watchOverflow={true}
+              breakpoints={{
+                640: { spaceBetween: 20 },
+                1024: { spaceBetween: 24 },
+              }}
+              className="services-swiper"
+              style={{
+                paddingLeft: '2vh',
+                paddingRight: '2vh'
+              }}
+            >
+              {filteredServices.map((service) => {
+                const quantity = getServiceQuantity(service.id)
+                const hours = getServiceHours(service.id)
+                const totalPrice = quantity * hours * service.pricePerHour
+                
+                return (
+                  <SwiperSlide key={service.id} style={{ width: '26vh', minWidth: '26vh' }}>
+                    <div className={clsx(
+                      'relative cursor-pointer transition-all duration-300 rounded-lg overflow-hidden group flex-shrink-0',
+                      'bg-slate-800 border shadow-sm hover:shadow-md',
+                      quantity > 0 
+                        ? 'border-green-500 ring-2 ring-green-500/20' 
+                        : 'border-slate-600 hover:border-slate-500'
+                    )}>
+                      {/* Selection Badge */}
+                      {quantity > 0 && (
+                        <div className="absolute top-[0.8vh] lg:top-[0.4vw] right-[0.8vh] lg:right-[0.4vw] z-10">
+                          <div className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] rounded-full bg-green-500 flex items-center justify-center">
+                            <Check className="w-[1.2vh] h-[1.2vh] lg:w-[0.6vw] lg:h-[0.6vw] text-white" />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Service Icon Header */}
+                      <div className="relative h-[12vh] lg:h-[6vw] bg-slate-700 overflow-hidden flex items-center justify-center">
+                        {(() => {
+                          const IconComponent = SERVICE_ICONS[service.category]
+                          return <IconComponent className="w-[5vh] h-[5vh] lg:w-[2.5vw] lg:h-[2.5vw] text-teal-400" />
+                        })()}
+                        
+                        {/* Price Badge */}
+                        <div className="absolute top-[0.8vh] lg:top-[0.4vw] left-[0.8vh] lg:left-[0.4vw]">
+                          <div className="bg-teal-600 px-[1vh] lg:px-[0.5vw] py-[0.4vh] lg:py-[0.2vw] rounded text-white text-[1.2vh] lg:text-[0.6vw] font-semibold">
+                            ${service.pricePerHour}/hr
+                          </div>
+                        </div>
+
+                        {/* Category Badge */}
+                        <div className="absolute bottom-[0.8vh] lg:bottom-[0.4vw] right-[0.8vh] lg:right-[0.4vw]">
+                          <div className="bg-slate-600 px-[0.8vh] lg:px-[0.4vw] py-[0.3vh] lg:py-[0.15vw] rounded text-gray-300 text-[1vh] lg:text-[0.5vw] font-medium">
+                            {service.category}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Service Details */}
+                      <div className="p-[1.5vh] lg:p-[0.8vw] space-y-[1vh] lg:space-y-[0.5vw]">
+                        {/* Service Name */}
+                        <div>
+                          <h3 className="text-white font-semibold text-[1.6vh] lg:text-[0.8vw] leading-tight line-clamp-2">
+                            {service.name}
+                          </h3>
+                        </div>
+
+                        {/* Description */}
+                        <p className="text-gray-400 text-[1.2vh] lg:text-[0.6vw] leading-relaxed line-clamp-2">
+                          {service.description}
+                        </p>
+
+                        {/* Staff Count and Hours Controls */}
+                        <div className="space-y-[0.8vh] lg:space-y-[0.4vw]">
+                          {/* Quantity Controls */}
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-300 text-[1.3vh] lg:text-[0.6vw]">Staff Count:</span>
+                            <div className="flex items-center space-x-[0.8vh] lg:space-x-[0.4vw]">
+                              <button
+                                onClick={() => updateServiceSelection(service.id, Math.max(0, quantity - 1), service.pricePerHour, hours)}
+                                disabled={quantity === 0}
+                                className="w-[3vh] h-[3vh] lg:w-[1.2vw] lg:h-[1.2vw] bg-slate-500 text-white rounded-full flex items-center justify-center hover:bg-slate-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-[1.4vh] lg:text-[0.6vw]"
+                              >
+                                -
+                              </button>
+                              <span className="w-[4vh] lg:w-[1.5vw] text-center font-bold text-white text-[1.4vh] lg:text-[0.7vw]">{quantity}</span>
+                              <button
+                                onClick={() => updateServiceSelection(service.id, quantity + 1, service.pricePerHour, hours)}
+                                className="w-[3vh] h-[3vh] lg:w-[1.2vw] lg:h-[1.2vw] bg-teal-500 text-white rounded-full flex items-center justify-center hover:bg-teal-600 transition-colors text-[1.4vh] lg:text-[0.6vw]"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Hours Controls */}
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-300 text-[1.3vh] lg:text-[0.6vw]">Hours:</span>
+                            <div className="flex items-center space-x-[0.8vh] lg:space-x-[0.4vw]">
+                              <button
+                                onClick={() => updateServiceHours(service.id, Math.max(1, hours - 1))}
+                                disabled={quantity === 0 || hours <= 1}
+                                className="w-[3vh] h-[3vh] lg:w-[1.2vw] lg:h-[1.2vw] bg-slate-500 text-white rounded-full flex items-center justify-center hover:bg-slate-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-[1.4vh] lg:text-[0.6vw]"
+                              >
+                                -
+                              </button>
+                              <span className="w-[4vh] lg:w-[1.5vw] text-center font-bold text-white text-[1.4vh] lg:text-[0.7vw]">{hours}h</span>
+                              <button
+                                onClick={() => updateServiceHours(service.id, Math.min(24, hours + 1))}
+                                disabled={quantity === 0 || hours >= 24}
+                                className="w-[3vh] h-[3vh] lg:w-[1.2vw] lg:h-[1.2vw] bg-teal-500 text-white rounded-full flex items-center justify-center hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-[1.4vh] lg:text-[0.6vw]"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Total Cost - Always present to maintain height */}
+                        <div className={`text-right font-medium text-[1.3vh] lg:text-[0.6vw] pt-[0.5vh] lg:pt-[0.2vw] min-h-[2.5vh] lg:min-h-[1.2vw] ${
+                          quantity > 0 
+                            ? 'text-teal-400 border-t border-slate-700' 
+                            : 'text-transparent'
+                        }`}>
+                          {quantity > 0 ? `$${totalPrice.toFixed(2)}` : '$0.00'}
+                        </div>
+                      </div>
+                    </div>
+                  </SwiperSlide>
+                )
+              })}
+            </Swiper>
+          </div>
+        </div>
+      </div>
 
       {/* Navigation */}
-      <div className="flex justify-between pt-6">
-        <Button
-          variant="outline"
-          onClick={onPrevious}
-          size="lg"
-          className="px-8"
-        >
-          Previous
-        </Button>
-        <Button
-          onClick={handleNext}
-          size="lg"
-          className="px-8"
-        >
-          {selectedServices.length > 0 ? 'Continue with Services' : 'Skip Services'}
-        </Button>
+      <div className="text-center space-y-[1.5vh] lg:space-y-[0.8vw] pt-[2vh] lg:pt-[1vw] max-w-[160vh] lg:max-w-[80vw] mx-auto px-[2vh] lg:px-[0.8vw]">
+        <div className="flex justify-between">
+          <Button
+            variant="outline"
+            onClick={onPrevious}
+            size="md"
+            className="px-[4vh] lg:px-[2vw] py-[1.2vh] lg:py-[0.6vw] text-[1.8vh] lg:text-[0.9vw] font-semibold"
+          >
+            Previous
+          </Button>
+          <Button
+            onClick={handleNext}
+            size="md"
+            className="px-[4vh] lg:px-[2vw] py-[1.2vh] lg:py-[0.6vw] text-[1.8vh] lg:text-[0.9vw] font-semibold"
+          >
+            {selectedServices.length > 0 ? (
+              <div className="flex items-center">
+                <Check className="w-[1.8vh] h-[1.8vh] lg:w-[0.9vw] lg:h-[0.9vw] mr-[0.8vh] lg:mr-[0.4vw]" />
+                Continue with Services
+              </div>
+            ) : (
+              'Skip Services'
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   )

@@ -34,7 +34,7 @@ model FoodCart {
   location    String
   isActive    Boolean  @default(true)
   pricePerHour Float
-  capacity    Int      @default(50) // max people it can serve
+  capacity    Int      @default(50) // max people this cart can serve food to
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

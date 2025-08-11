@@ -13,17 +13,21 @@
   },
   "dependencies": {
     "@prisma/client": "^6.13.0",
+    "@reduxjs/toolkit": "^2.8.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "bcryptjs": "^3.0.2",
     "clsx": "^2.1.1",
     "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^0.539.0",
     "mysql2": "^3.14.3",
     "next": "15.4.6",
     "next-auth": "^4.24.11",
     "prisma": "^6.13.0",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "react-redux": "^9.2.0",
+    "swiper": "^11.2.10"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

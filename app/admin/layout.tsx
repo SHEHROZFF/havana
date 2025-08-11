@@ -1,29 +1,45 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSelector, useDispatch } from 'react-redux'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { clsx } from 'clsx'
 import { isAuthenticated, logout } from '@/lib/auth'
+import { logOut, initializeAuth } from '../../lib/slices/authSlice'
+import type { RootState } from '../../lib/store'
+import { 
+  BarChart3, 
+  Calendar, 
+  Truck, 
+  ChefHat, 
+  Users, 
+  LogOut, 
+  Menu, 
+  X,
+  Home
+} from 'lucide-react'
 
 interface AdminLayoutProps {
   children: React.ReactNode
 }
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
-  const [authenticated, setAuthenticated] = useState(false)
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
+  const dispatch = useDispatch()
+  
+  // Get auth state from Redux
+  const { isAuthenticated: authenticated, token } = useSelector((state: RootState) => state.auth)
 
   useEffect(() => {
-
+    // Initialize auth from localStorage
+    dispatch(initializeAuth())
     
     // Skip auth check for login page
     if (pathname === '/admin/login') {
-
-      setAuthenticated(true)
       setLoading(false)
       return
     }
@@ -40,7 +56,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     }
     
     console.log('User is authenticated, staying on admin page')
-    setAuthenticated(true)
     setLoading(false)
   }, [pathname, router])
 
@@ -85,14 +100,21 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   console.log('Rendering authenticated admin layout')
 
+  // Icon mapper
+  const iconMap = {
+    BarChart3,
+    Calendar,
+    Truck,
+    ChefHat,
+    Users
+  } as const
+
   const navigation = [
-    { name: 'Dashboard', href: '/admin', icon: '📊', description: 'Overview & analytics' },
-    { name: 'Bookings', href: '/admin/bookings', icon: '📅', description: 'Manage reservations' },
-    { name: 'Food Carts', href: '/admin/food-carts', icon: '🚚', description: 'Cart management' },
-    { name: 'Food Items', href: '/admin/food-items', icon: '🍔', description: 'Menu items' },
-    { name: 'Services', href: '/admin/services', icon: '🎪', description: 'Staff & services' },
-    { name: 'Customers', href: '/admin/customers', icon: '👥', description: 'Customer data' },
-    { name: 'Settings', href: '/admin/settings', icon: '⚙️', description: 'System settings' },
+    { name: 'Dashboard', href: '/admin', icon: 'BarChart3', description: 'Overview & analytics' },
+    { name: 'Bookings', href: '/admin/bookings', icon: 'Calendar', description: 'Manage reservations' },
+    { name: 'Food Carts', href: '/admin/food-carts', icon: 'Truck', description: 'Cart management' },
+    { name: 'Food Items', href: '/admin/food-items', icon: 'ChefHat', description: 'Menu items' },
+    { name: 'Services', href: '/admin/services', icon: 'Users', description: 'Staff & services' },
   ]
 
   return (
@@ -160,7 +182,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                         : 'text-gray-300 hover:bg-slate-700/50 hover:text-white border border-transparent hover:border-slate-600'
                     )}
                   >
-                    <span className="mr-3 text-xl">{item.icon}</span>
+                    <span className="mr-3">
+                      {(() => {
+                        const IconComponent = iconMap[item.icon as keyof typeof iconMap]
+                        return <IconComponent className="w-5 h-5" />
+                      })()}
+                    </span>
                     <div className="flex-1">
                       <div className="font-medium">{item.name}</div>
                       <div className="text-xs opacity-70">{item.description}</div>
@@ -197,17 +224,18 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   href="/"
                   className="flex items-center w-full px-3 py-2 text-sm text-gray-300 hover:bg-slate-700 hover:text-white rounded-lg transition-colors"
                 >
-                  <span className="mr-2">🏠</span>
+                  <Home className="mr-2 w-4 h-4" />
                   Back to Site
                 </Link>
                 <button
                   onClick={() => {
                     console.log('Logout clicked')
-                    logout()
+                    dispatch(logOut())
+                    logout() // Also clear localStorage
                   }}
                   className="flex items-center w-full px-3 py-2 text-sm text-gray-300 hover:bg-red-500/20 hover:text-red-400 rounded-lg transition-colors"
                 >
-                  <span className="mr-2">🚪</span>
+                  <LogOut className="mr-2 w-4 h-4" />
                   Logout
                 </button>
               </div>
@@ -226,9 +254,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   className="lg:hidden p-2 rounded-lg text-gray-400 hover:text-white hover:bg-slate-700 transition-colors"
                 >
                   <span className="sr-only">Open sidebar</span>
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
+                  <Menu className="w-6 h-6" />
                 </button>
                 
                 {/* Breadcrumb */}

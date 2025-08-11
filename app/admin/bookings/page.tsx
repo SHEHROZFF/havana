@@ -1,102 +1,60 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import { clsx } from 'clsx'
-
-interface Booking {
-  id: string
-  customerName: string
-  customerEmail: string
-  customerPhone: string
-  cartName: string
-  eventDate: string
-  startTime: string
-  endTime: string
-  totalAmount: number
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled'
-  eventType: string
-  guestCount: number
-  createdAt: string
-}
+import { useGetBookingsQuery, useUpdateBookingStatusMutation, useCancelBookingMutation } from '../../../lib/api/bookingsApi'
+import type { Booking } from '../../../types/booking'
+import { Plus, FileText, Calendar } from 'lucide-react'
 
 export default function BookingsPage() {
-  const [bookings, setBookings] = useState<Booking[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
 
-  useEffect(() => {
-    const fetchBookings = async () => {
-      try {
-        const response = await fetch('/api/bookings')
-        if (response.ok) {
-          const data = await response.json()
-          setBookings(data)
-        } else {
-          // Mock data for demo
-          const mockBookings: Booking[] = [
-            {
-              id: '1',
-              customerName: 'John Doe',
-              customerEmail: 'john@example.com',
-              customerPhone: '+1-555-123-4567',
-              cartName: 'Havana Street Tacos',
-              eventDate: '2024-01-25',
-              startTime: '14:00',
-              endTime: '18:00',
-              totalAmount: 245.00,
-              status: 'confirmed',
-              eventType: 'birthday',
-              guestCount: 50,
-              createdAt: '2024-01-20T10:30:00Z'
-            },
-            {
-              id: '2',
-              customerName: 'Sarah Wilson',
-              customerEmail: 'sarah@example.com',
-              customerPhone: '+1-555-987-6543',
-              cartName: 'Cuban Coffee Cart',
-              eventDate: '2024-01-26',
-              startTime: '09:00',
-              endTime: '13:00',
-              totalAmount: 340.00,
-              status: 'pending',
-              eventType: 'corporate',
-              guestCount: 80,
-              createdAt: '2024-01-21T14:15:00Z'
-            },
-            {
-              id: '3',
-              customerName: 'Mike Johnson',
-              customerEmail: 'mike@example.com',
-              customerPhone: '+1-555-456-7890',
-              cartName: 'Tropical Smoothie Bar',
-              eventDate: '2024-01-27',
-              startTime: '19:00',
-              endTime: '23:00',
-              totalAmount: 180.00,
-              status: 'confirmed',
-              eventType: 'wedding',
-              guestCount: 35,
-              createdAt: '2024-01-22T09:45:00Z'
-            }
-          ]
-          setBookings(mockBookings)
-        }
-      } catch (error) {
-        console.error('Error fetching bookings:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
+  // RTK Query hooks
+  const {
+    data: bookingsData,
+    isLoading: loading,
+    error,
+    refetch
+  } = useGetBookingsQuery({
+    search: searchTerm || undefined,
+    status: statusFilter !== 'all' ? statusFilter : undefined,
+    page: 1,
+    limit: 50
+  })
 
-    fetchBookings()
-  }, [])
+  const [updateBookingStatusMutation] = useUpdateBookingStatusMutation()
+  const [cancelBookingMutation] = useCancelBookingMutation()
+
+  const bookings = bookingsData?.bookings || []
+
+  // Handle status update
+  const handleStatusUpdate = async (bookingId: string, newStatus: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED') => {
+    try {
+      await updateBookingStatusMutation({ id: bookingId, status: newStatus }).unwrap()
+      // RTK Query will automatically refetch and update the UI
+    } catch (error) {
+      console.error('Failed to update booking status:', error)
+    }
+  }
+
+  // Handle booking cancellation
+  const handleCancelBooking = async (bookingId: string) => {
+    try {
+      await cancelBookingMutation(bookingId).unwrap()
+      // RTK Query will automatically refetch and update the UI
+    } catch (error) {
+      console.error('Failed to cancel booking:', error)
+    }
+  }
+
+  // Use only real data from database
+  const displayBookings = bookings
 
   const statusOptions = [
     { value: 'all', label: 'All Statuses' },
@@ -106,10 +64,10 @@ export default function BookingsPage() {
     { value: 'cancelled', label: 'Cancelled' }
   ]
 
-  const filteredBookings = bookings.filter(booking => {
+  const filteredBookings = displayBookings.filter(booking => {
     const matchesSearch = booking.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          booking.customerEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         booking.cartName.toLowerCase().includes(searchTerm.toLowerCase())
+                         (booking.cartName || '').toLowerCase().includes(searchTerm.toLowerCase())
     const matchesStatus = statusFilter === 'all' || booking.status === statusFilter
     return matchesSearch && matchesStatus
   })
@@ -124,16 +82,7 @@ export default function BookingsPage() {
     }
   }
 
-  const updateBookingStatus = async (bookingId: string, newStatus: string) => {
-    try {
-      // In real app, this would make an API call
-      setBookings(prev => prev.map(booking => 
-        booking.id === bookingId ? { ...booking, status: newStatus as any } : booking
-      ))
-    } catch (error) {
-      console.error('Error updating booking status:', error)
-    }
-  }
+
 
   if (loading) {
     return (
@@ -157,7 +106,8 @@ export default function BookingsPage() {
         </div>
         <div className="mt-4 lg:mt-0">
           <Button>
-            ➕ New Booking
+                          <Plus className="w-4 h-4 mr-2" />
+              New Booking
           </Button>
         </div>
       </div>
@@ -176,9 +126,7 @@ export default function BookingsPage() {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             />
-            <Button variant="outline">
-              📊 Export Data
-            </Button>
+
           </div>
         </CardContent>
       </Card>
@@ -193,7 +141,9 @@ export default function BookingsPage() {
         <CardContent>
           {filteredBookings.length === 0 ? (
             <div className="text-center py-12">
-              <div className="text-6xl mb-4">📅</div>
+              <div className="mb-4">
+            <Calendar className="w-24 h-24 text-gray-400 mx-auto" />
+          </div>
               <h3 className="text-xl font-semibold text-white mb-2">No bookings found</h3>
               <p className="text-gray-400">Try adjusting your search criteria or add a new booking.</p>
             </div>
@@ -248,11 +198,11 @@ export default function BookingsPage() {
                     </div>
                     
                     <div className="mt-4 lg:mt-0 lg:ml-6 flex flex-wrap gap-2">
-                      {booking.status === 'pending' && (
+                      {booking.status === 'PENDING' && (
                         <>
                           <Button
                             size="sm"
-                            onClick={() => updateBookingStatus(booking.id, 'confirmed')}
+                            onClick={() => handleStatusUpdate(booking.id, 'CONFIRMED')}
                             className="bg-blue-500 hover:bg-blue-600"
                           >
                             ✓ Confirm
@@ -260,17 +210,17 @@ export default function BookingsPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => updateBookingStatus(booking.id, 'cancelled')}
+                            onClick={() => handleStatusUpdate(booking.id, 'CANCELLED')}
                             className="border-red-500 text-red-400 hover:bg-red-500/20"
                           >
                             ✕ Cancel
                           </Button>
                         </>
                       )}
-                      {booking.status === 'confirmed' && (
+                      {booking.status === 'CONFIRMED' && (
                         <Button
                           size="sm"
-                          onClick={() => updateBookingStatus(booking.id, 'completed')}
+                          onClick={() => handleStatusUpdate(booking.id, 'COMPLETED')}
                           className="bg-green-500 hover:bg-green-600"
                         >
                           ✓ Complete
