@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         },
         services: {
           where: {
-            isAvailable: true
+            isActive: true
           },
           orderBy: {
             name: 'asc'
