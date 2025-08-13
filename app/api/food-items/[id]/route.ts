@@ -52,19 +52,22 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // TODO: Add authentication and authorization checks for admin users
 
+    // Build update data object with only provided fields
+    const updateData: any = {}
+    
+    if (name !== undefined) updateData.name = name
+    if (description !== undefined) updateData.description = description
+    if (price !== undefined) updateData.price = parseFloat(price)
+    if (image !== undefined) updateData.image = image
+    if (category !== undefined) updateData.category = category
+    if (cartId !== undefined) updateData.cartId = cartId
+    if (isAvailable !== undefined) updateData.isAvailable = isAvailable
+
     const foodItem = await prisma.foodItem.update({
       where: {
         id: id
       },
-      data: {
-        name,
-        description,
-        price: parseFloat(price),
-        image,
-        category,
-        cartId,
-        isAvailable
-      },
+      data: updateData,
       include: {
         cart: {
           select: {

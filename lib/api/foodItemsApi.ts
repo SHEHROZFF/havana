@@ -4,11 +4,14 @@ import type { FoodItem } from '../../types/booking'
 export const foodItemsApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     // Get all food items
-    getFoodItems: builder.query<FoodItem[], { cartId?: string }>({
+    getFoodItems: builder.query<FoodItem[], { cartId?: string; includeInactive?: boolean }>({
       query: (params = {}) => {
         const searchParams = new URLSearchParams()
         if (params.cartId) {
           searchParams.append('cartId', params.cartId)
+        }
+        if (params.includeInactive) {
+          searchParams.append('includeInactive', 'true')
         }
         return `/food-items?${searchParams.toString()}`
       },

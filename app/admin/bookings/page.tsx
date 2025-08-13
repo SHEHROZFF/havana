@@ -1,37 +1,54 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import { clsx } from 'clsx'
 import { useGetBookingsQuery, useUpdateBookingStatusMutation, useCancelBookingMutation } from '../../../lib/api/bookingsApi'
+import { useAdminI18n } from '../../../lib/i18n/admin-context'
 import type { Booking } from '../../../types/booking'
-import { Plus, FileText, Calendar } from 'lucide-react'
+import { Calendar } from 'lucide-react'
 
 export default function BookingsPage() {
+  const { t } = useAdminI18n()
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [currentPage, setCurrentPage] = useState(1)
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
+  const itemsPerPage = 10
 
-  // RTK Query hooks
+  // Debounce search term to avoid too many API calls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  // RTK Query hooks with proper pagination and debounced search
   const {
     data: bookingsData,
     isLoading: loading,
     error,
     refetch
   } = useGetBookingsQuery({
-    search: searchTerm || undefined,
+    search: debouncedSearchTerm || undefined,
     status: statusFilter !== 'all' ? statusFilter : undefined,
-    page: 1,
-    limit: 50
+    page: currentPage,
+    limit: itemsPerPage
   })
 
   const [updateBookingStatusMutation] = useUpdateBookingStatusMutation()
   const [cancelBookingMutation] = useCancelBookingMutation()
 
   const bookings = bookingsData?.bookings || []
+  const totalPages = bookingsData?.totalPages || 1
+  const totalBookings = bookingsData?.total || 0
 
   // Handle status update
   const handleStatusUpdate = async (bookingId: string, newStatus: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED') => {
@@ -53,31 +70,33 @@ export default function BookingsPage() {
     }
   }
 
-  // Use only real data from database
-  const displayBookings = bookings
+  // Reset to page 1 when debounced search changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [debouncedSearchTerm, statusFilter])
+
+  // Handle search input change
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value)
+  }
+
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value)
+  }
 
   const statusOptions = [
-    { value: 'all', label: 'All Statuses' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'confirmed', label: 'Confirmed' },
-    { value: 'completed', label: 'Completed' },
-    { value: 'cancelled', label: 'Cancelled' }
+    { value: 'all', label: t('all_statuses') },
+    { value: 'pending', label: t('pending') },
+    { value: 'confirmed', label: t('confirmed') },
+    { value: 'completed', label: t('completed') },
+    { value: 'cancelled', label: t('cancelled') }
   ]
 
-  const filteredBookings = displayBookings.filter(booking => {
-    const name = (booking as any).customerName || `${(booking as any).customerFirstName || ''} ${(booking as any).customerLastName || ''}`.trim()
-    const email = (booking as any).customerEmail || ''
-    const cart = (booking as any).cartName || ''
-
-    const search = searchTerm.toLowerCase()
-    const matchesSearch = name.toLowerCase().includes(search) ||
-                          email.toLowerCase().includes(search) ||
-                          cart.toLowerCase().includes(search)
-
-    const status = (booking as any).status || ''
-    const matchesStatus = statusFilter === 'all' || status.toUpperCase() === statusFilter.toUpperCase()
-    return matchesSearch && matchesStatus
-  })
+  // Translate status function
+  const getTranslatedStatus = (status: string) => {
+    const statusKey = status.toLowerCase() as 'pending' | 'confirmed' | 'completed' | 'cancelled'
+    return t(statusKey)
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -105,33 +124,35 @@ export default function BookingsPage() {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">
-            Bookings Management
+            {t('bookings_management')}
           </h1>
           <p className="text-gray-400">
-            Manage all customer bookings and reservations
+            {t('manage_customer_bookings')}
           </p>
         </div>
-        <div className="mt-4 lg:mt-0">
-          <Button>
-                          <Plus className="w-4 h-4 mr-2" />
-              New Booking
-          </Button>
-        </div>
+
       </div>
 
       {/* Filters */}
       <Card className="bg-slate-700/50 backdrop-blur-sm border-slate-600">
         <CardContent className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Input
-              placeholder="Search bookings..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+            <div className="relative">
+              <Input
+                placeholder={t('search_bookings')}
+                value={searchTerm}
+                onChange={(e) => handleSearchChange(e.target.value)}
+              />
+              {searchTerm !== debouncedSearchTerm && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-teal-500 border-t-transparent"></div>
+                </div>
+              )}
+            </div>
             <Select
               options={statusOptions}
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => handleStatusFilterChange(e.target.value)}
             />
 
           </div>
@@ -142,21 +163,21 @@ export default function BookingsPage() {
       <Card className="bg-slate-700/50 backdrop-blur-sm border-slate-600">
         <CardHeader>
           <CardTitle className="text-white">
-            All Bookings ({filteredBookings.length})
+            {t('all_bookings_count').replace('{count}', totalBookings.toString())}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {filteredBookings.length === 0 ? (
+          {bookings.length === 0 ? (
             <div className="text-center py-12">
               <div className="mb-4">
             <Calendar className="w-24 h-24 text-gray-400 mx-auto" />
           </div>
-              <h3 className="text-xl font-semibold text-white mb-2">No bookings found</h3>
-              <p className="text-gray-400">Try adjusting your search criteria or add a new booking.</p>
+              <h3 className="text-xl font-semibold text-white mb-2">{t('no_bookings_found')}</h3>
+              <p className="text-gray-400">{t('try_adjusting_search')}</p>
             </div>
           ) : (
             <div className="space-y-4">
-              {filteredBookings.map((booking) => (
+              {bookings.map((booking) => (
                 <div
                   key={booking.id}
                   className="bg-slate-600/50 border border-slate-500/50 rounded-xl p-6 hover:border-slate-400/50 transition-all duration-300"
@@ -179,27 +200,27 @@ export default function BookingsPage() {
                         </div>
                         <span className={clsx(
                           'px-3 py-1 rounded-full text-xs font-medium border',
-                          getStatusColor(booking.status)
+                          getStatusColor(booking.status.toLowerCase())
                         )}>
-                          {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                          {getTranslatedStatus(booking.status)}
                         </span>
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                         <div>
-                          <p className="text-gray-400">Event Details</p>
+                          <p className="text-gray-400">{t('event_details')}</p>
                           <p className="text-white font-medium">{booking.cartName}</p>
-                          <p className="text-gray-300">{booking.eventType} • {booking.guestCount} guests</p>
+                          <p className="text-gray-300">{booking.eventType} • {booking.guestCount} {t('guests')}</p>
                         </div>
                         <div>
-                          <p className="text-gray-400">Date & Time</p>
+                          <p className="text-gray-400">{t('date_time')}</p>
                           <p className="text-white font-medium">{booking.eventDate}</p>
                           <p className="text-gray-300">{booking.startTime} - {booking.endTime}</p>
                         </div>
                         <div>
-                          <p className="text-gray-400">Total Amount</p>
-                          <p className="text-white font-bold text-lg">${booking.totalAmount}</p>
-                          <p className="text-gray-300">Booked on {new Date(booking.createdAt).toLocaleDateString()}</p>
+                          <p className="text-gray-400">{t('total_amount')}</p>
+                          <p className="text-white font-bold text-lg">€{booking.totalAmount}</p>
+                          <p className="text-gray-300">{t('booked_on').replace('{date}', new Date(booking.createdAt).toLocaleDateString())}</p>
                         </div>
                       </div>
                     </div>
@@ -212,7 +233,7 @@ export default function BookingsPage() {
                             onClick={() => handleStatusUpdate(booking.id, 'CONFIRMED')}
                             className="bg-blue-500 hover:bg-blue-600"
                           >
-                            ✓ Confirm
+                            {t('confirm')}
                           </Button>
                           <Button
                             size="sm"
@@ -220,7 +241,7 @@ export default function BookingsPage() {
                             onClick={() => handleStatusUpdate(booking.id, 'CANCELLED')}
                             className="border-red-500 text-red-400 hover:bg-red-500/20"
                           >
-                            ✕ Cancel
+                            {t('cancel')}
                           </Button>
                         </>
                       )}
@@ -230,7 +251,7 @@ export default function BookingsPage() {
                           onClick={() => handleStatusUpdate(booking.id, 'COMPLETED')}
                           className="bg-green-500 hover:bg-green-600"
                         >
-                          ✓ Complete
+                          {t('complete')}
                         </Button>
                       )}
                       <Button
@@ -238,12 +259,50 @@ export default function BookingsPage() {
                         variant="ghost"
                         onClick={() => setSelectedBooking(booking)}
                       >
-                        👁 View Details
+                        {t('view_details')}
                       </Button>
                     </div>
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+          
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="mt-6 flex items-center justify-between">
+              <div className="text-sm text-gray-400">
+                {t('showing_results')
+                  .replace('{start}', ((currentPage - 1) * itemsPerPage + 1).toString())
+                  .replace('{end}', Math.min(currentPage * itemsPerPage, totalBookings).toString())
+                  .replace('{total}', totalBookings.toString())}
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  {t('previous')}
+                </Button>
+                
+                <span className="text-sm text-gray-300">
+                  {t('page_of')
+                    .replace('{current}', currentPage.toString())
+                    .replace('{total}', totalPages.toString())}
+                </span>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  {t('next')}
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

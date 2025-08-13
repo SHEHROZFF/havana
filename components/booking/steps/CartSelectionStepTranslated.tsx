@@ -34,7 +34,7 @@ export default function CartSelectionStepTranslated({ formData, updateFormData, 
     data: foodCarts = [],
     isLoading: loading,
     error
-  } = useGetFoodCartsQuery()
+  } = useGetFoodCartsQuery({})
 
   const handleCartSelect = (cartId: string) => {
     setSelectedCartId(cartId)

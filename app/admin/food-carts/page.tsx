@@ -6,16 +6,17 @@ import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { clsx } from 'clsx'
 import { useGetFoodCartsQuery, useCreateFoodCartMutation, useUpdateFoodCartMutation, useDeleteFoodCartMutation } from '../../../lib/api/foodCartsApi'
+import { useAdminI18n } from '../../../lib/i18n/admin-context'
 import type { FoodCart } from '../../../types/booking'
 import { Plus, Truck, AlertTriangle } from 'lucide-react'
 
 export default function FoodCartsPage() {
+  const { t } = useAdminI18n()
   const [isCreating, setIsCreating] = useState(false)
   const [editingCart, setEditingCart] = useState<FoodCart | null>(null)
   const [newCart, setNewCart] = useState({
     name: '',
     description: '',
-    cuisine: '',
     location: '',
     pricePerHour: 0,
     extraHourPrice: 0,
@@ -27,13 +28,13 @@ export default function FoodCartsPage() {
     image: ''
   })
 
-  // RTK Query hooks
+  // RTK Query hooks - include inactive carts for admin
   const {
     data: foodCarts = [],
     isLoading: loading,
     error,
     refetch
-  } = useGetFoodCartsQuery()
+  } = useGetFoodCartsQuery({ includeInactive: true })
 
   const [createFoodCart, { isLoading: creating }] = useCreateFoodCartMutation()
   const [updateFoodCart, { isLoading: updating }] = useUpdateFoodCartMutation()
@@ -43,11 +44,13 @@ export default function FoodCartsPage() {
   const handleCreateCart = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await createFoodCart(newCart).unwrap()
+      await createFoodCart({
+        ...newCart,
+        location: newCart.location // Ensure location is included
+      }).unwrap()
       setNewCart({
         name: '',
         description: '',
-        cuisine: '',
         location: '',
         pricePerHour: 0,
         extraHourPrice: 0,
@@ -77,7 +80,7 @@ export default function FoodCartsPage() {
 
   // Handle delete cart
   const handleDeleteCart = async (cartId: string) => {
-    if (confirm('Are you sure you want to delete this food cart?')) {
+    if (confirm(t('delete_confirm'))) {
       try {
         await deleteFoodCart(cartId).unwrap()
       } catch (error) {
@@ -91,7 +94,7 @@ export default function FoodCartsPage() {
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-teal-500 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-white text-lg">Loading food carts...</p>
+          <p className="text-white text-lg">{t('loading_food_carts')}</p>
         </div>
       </div>
     )
@@ -102,15 +105,15 @@ export default function FoodCartsPage() {
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Food Carts Management</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">{t('food_carts_management')}</h1>
           <p className="text-gray-400">
-            Manage your food cart fleet and rental options
+            {t('manage_food_cart_fleet')}
           </p>
           {error && (
             <div className="mt-2 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
               <div className="flex items-center">
                 <AlertTriangle className="w-4 h-4 mr-2" />
-                <p className="text-red-400 text-sm">Failed to load food carts</p>
+                <p className="text-red-400 text-sm">{t('failed_to_load_food_carts')}</p>
               </div>
             </div>
           )}
@@ -122,7 +125,7 @@ export default function FoodCartsPage() {
             onClick={() => refetch()}
             disabled={loading}
           >
-            🔄 Refresh
+            {t('refresh')}
           </Button>
           <Button 
             size="sm" 
@@ -130,7 +133,7 @@ export default function FoodCartsPage() {
             disabled={creating}
           >
             <Plus className="w-4 h-4 mr-2" />
-            Add New Cart
+            {t('add_new_cart')}
           </Button>
         </div>
       </div>
@@ -139,90 +142,81 @@ export default function FoodCartsPage() {
       {isCreating && (
         <Card className="bg-slate-700/50 backdrop-blur-sm border-slate-600">
           <CardHeader>
-            <CardTitle className="text-white">Add New Food Cart</CardTitle>
+            <CardTitle className="text-white">{t('add_new_food_cart')}</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCreateCart} className="space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                <Input
-                  label="Cart Name"
-                  value={newCart.name}
-                  onChange={(e) => setNewCart({ ...newCart, name: e.target.value })}
-                  placeholder="e.g., Havana Street Tacos"
-                  required
-                />
-                <Input
-                  label="Cuisine Type"
-                  value={newCart.cuisine}
-                  onChange={(e) => setNewCart({ ...newCart, cuisine: e.target.value })}
-                  placeholder="e.g., Cuban, Mexican"
-                  required
-                />
-              </div>
-              
               <Input
-                label="Description"
-                value={newCart.description}
-                onChange={(e) => setNewCart({ ...newCart, description: e.target.value })}
-                placeholder="Describe your food cart..."
+                label={t('cart_name')}
+                value={newCart.name}
+                onChange={(e) => setNewCart({ ...newCart, name: e.target.value })}
+                placeholder={t('cart_name_placeholder')}
                 required
               />
               
               <Input
-                label="Location"
+                label={t('description')}
+                value={newCart.description}
+                onChange={(e) => setNewCart({ ...newCart, description: e.target.value })}
+                placeholder={t('description_placeholder')}
+                required
+              />
+              
+              <Input
+                label={t('location')}
                 value={newCart.location}
                 onChange={(e) => setNewCart({ ...newCart, location: e.target.value })}
-                placeholder="e.g., Athens, Thessaloniki, Mobile Service"
+                placeholder={t('location_placeholder')}
                 required
               />
 
               <div className="grid md:grid-cols-3 gap-4">
                 <Input
-                  label="Base Price (up to 4hrs) ($)"
+                  label={t('base_price_label')}
                   type="number"
                   value={newCart.pricePerHour}
                   onChange={(e) => setNewCart({ ...newCart, pricePerHour: parseFloat(e.target.value) || 0 })}
-                  placeholder="600"
-                  helperText="Fixed price for bookings up to 4 hours"
+                  placeholder={t('base_price_placeholder')}
+                  helperText={t('base_price_helper')}
                   required
                 />
                 <Input
-                  label="Extra Hour Price ($)"
+                  label={t('extra_hour_price_label')}
                   type="number"
                   value={newCart.extraHourPrice}
                   onChange={(e) => setNewCart({ ...newCart, extraHourPrice: parseFloat(e.target.value) || 0 })}
-                  placeholder="50"
-                  helperText="Price per hour beyond 4 hours"
+                  placeholder={t('extra_hour_price_placeholder')}
+                  helperText={t('extra_hour_price_helper')}
                 />
                 <Input
-                  label="Shipping Price ($)"
+                  label={t('shipping_price_label')}
                   type="number"
                   value={newCart.shippingPrice}
                   onChange={(e) => setNewCart({ ...newCart, shippingPrice: parseFloat(e.target.value) || 0 })}
-                  placeholder="100"
-                  helperText="Delivery cost to customer location"
+                  placeholder={t('shipping_price_placeholder')}
+                  helperText={t('shipping_price_helper')}
                 />
                 <Input
-                  label="Food Serving Capacity"
+                  label={t('food_serving_capacity')}
                   type="number"
                   value={newCart.capacity}
                   onChange={(e) => setNewCart({ ...newCart, capacity: parseInt(e.target.value) || 0 })}
-                  placeholder="50"
-                  helperText="How many people can this cart serve food to"
+                  placeholder={t('capacity_placeholder')}
+                  helperText={t('capacity_helper')}
                   required
                 />
               </div>
 
               <Input
-                label="Image URL (optional)"
+                label={t('image_url_optional')}
                 value={newCart.image}
                 onChange={(e) => setNewCart({ ...newCart, image: e.target.value })}
-                placeholder="https://..."
+                placeholder={t('image_placeholder')}
               />
 
               {/* Delivery Options */}
               <div className="space-y-4">
-                <h4 className="font-semibold text-white">Delivery Options</h4>
+                <h4 className="font-semibold text-white">{t('delivery_options')}</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex items-center space-x-3">
                     <input
@@ -233,7 +227,7 @@ export default function FoodCartsPage() {
                       className="w-4 h-4 text-teal-500 bg-gray-100 border-gray-300 rounded focus:ring-teal-500"
                     />
                     <label htmlFor="pickupAvailable" className="text-sm font-medium text-white">
-                      Pickup Available
+                      {t('pickup_available')}
                     </label>
                   </div>
                   <div className="flex items-center space-x-3">
@@ -245,7 +239,7 @@ export default function FoodCartsPage() {
                       className="w-4 h-4 text-teal-500 bg-gray-100 border-gray-300 rounded focus:ring-teal-500"
                     />
                     <label htmlFor="shippingAvailable" className="text-sm font-medium text-white">
-                      Shipping Available
+                      {t('shipping_available')}
                     </label>
                   </div>
                 </div>
@@ -258,13 +252,156 @@ export default function FoodCartsPage() {
                   onClick={() => setIsCreating(false)}
                   disabled={creating}
                 >
-                  Cancel
+                  {t('cancel')}
                 </Button>
                 <Button 
                   type="submit" 
                   disabled={creating}
                 >
-                  {creating ? 'Creating...' : 'Create Cart'}
+                  {creating ? t('creating') : t('create_cart')}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Edit Cart Form */}
+      {editingCart && (
+        <Card className="bg-slate-700/50 backdrop-blur-sm border-slate-600">
+          <CardHeader>
+            <CardTitle className="text-white">Edit Food Cart: {editingCart.name}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={(e) => {
+              e.preventDefault()
+              const formData = new FormData(e.currentTarget)
+              handleUpdateCart({
+                name: formData.get('name') as string,
+                description: formData.get('description') as string,
+                location: formData.get('location') as string,
+                pricePerHour: parseFloat(formData.get('pricePerHour') as string),
+                extraHourPrice: parseFloat(formData.get('extraHourPrice') as string) || 0,
+                shippingPrice: parseFloat(formData.get('shippingPrice') as string) || 0,
+                capacity: parseInt(formData.get('capacity') as string),
+                image: formData.get('image') as string,
+                pickupAvailable: formData.has('pickupAvailable'),
+                shippingAvailable: formData.has('shippingAvailable'),
+              })
+            }} className="space-y-4">
+              <Input
+                name="name"
+                label={t('cart_name')}
+                defaultValue={editingCart.name}
+                placeholder={t('cart_name_placeholder')}
+                required
+              />
+              
+              <Input
+                name="description"
+                label={t('description')}
+                defaultValue={editingCart.description}
+                placeholder={t('description_placeholder')}
+                required
+              />
+              
+              <Input
+                name="location"
+                label={t('location')}
+                defaultValue={editingCart.location}
+                placeholder={t('location_placeholder')}
+                required
+              />
+
+              <div className="grid md:grid-cols-3 gap-4">
+                <Input
+                  name="pricePerHour"
+                  label={t('base_price_label')}
+                  type="number"
+                  defaultValue={editingCart.pricePerHour}
+                  placeholder={t('base_price_placeholder')}
+                  helperText={t('base_price_helper')}
+                  required
+                />
+                <Input
+                  name="extraHourPrice"
+                  label={t('extra_hour_price_label')}
+                  type="number"
+                  defaultValue={editingCart.extraHourPrice || 0}
+                  placeholder={t('extra_hour_price_placeholder')}
+                  helperText={t('extra_hour_price_helper')}
+                />
+                <Input
+                  name="shippingPrice"
+                  label={t('shipping_price_label')}
+                  type="number"
+                  defaultValue={editingCart.shippingPrice || 0}
+                  placeholder={t('shipping_price_placeholder')}
+                  helperText={t('shipping_price_helper')}
+                />
+                <Input
+                  name="capacity"
+                  label={t('food_serving_capacity')}
+                  type="number"
+                  defaultValue={editingCart.capacity}
+                  placeholder={t('capacity_placeholder')}
+                  helperText={t('capacity_helper')}
+                  required
+                />
+              </div>
+
+              <Input
+                name="image"
+                label={t('image_url_optional')}
+                defaultValue={editingCart.image || ''}
+                placeholder={t('image_placeholder')}
+              />
+
+              {/* Delivery Options */}
+              <div className="space-y-4">
+                <h4 className="font-semibold text-white">{t('delivery_options')}</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      id="editPickupAvailable"
+                      name="pickupAvailable"
+                      defaultChecked={editingCart.pickupAvailable}
+                      className="w-4 h-4 text-teal-500 bg-gray-100 border-gray-300 rounded focus:ring-teal-500"
+                    />
+                    <label htmlFor="editPickupAvailable" className="text-sm font-medium text-white">
+                      {t('pickup_available')}
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      id="editShippingAvailable"
+                      name="shippingAvailable"
+                      defaultChecked={editingCart.shippingAvailable}
+                      className="w-4 h-4 text-teal-500 bg-gray-100 border-gray-300 rounded focus:ring-teal-500"
+                    />
+                    <label htmlFor="editShippingAvailable" className="text-sm font-medium text-white">
+                      {t('shipping_available')}
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setEditingCart(null)}
+                  disabled={updating}
+                >
+                  {t('cancel')}
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={updating}
+                >
+                  {updating ? t('updating') : t('update_cart')}
                 </Button>
               </div>
             </form>
@@ -279,13 +416,13 @@ export default function FoodCartsPage() {
             <div className="mb-4">
             <Truck className="w-24 h-24 text-gray-400 mx-auto" />
           </div>
-            <h2 className="text-2xl font-bold text-white mb-2">No Food Carts Yet</h2>
+            <h2 className="text-2xl font-bold text-white mb-2">{t('no_food_carts_yet')}</h2>
             <p className="text-gray-400 mb-6">
-              Start by adding your first food cart to begin accepting bookings.
+              {t('start_by_adding_first_cart')}
             </p>
             <Button onClick={() => setIsCreating(true)}>
               <Plus className="w-4 h-4 mr-2" />
-              Add Your First Cart
+              {t('add_your_first_cart')}
             </Button>
           </CardContent>
         </Card>
@@ -316,41 +453,41 @@ export default function FoodCartsPage() {
                         ? "bg-green-500/20 text-green-400" 
                         : "bg-red-500/20 text-red-400"
                     )}>
-                      {cart.isActive ? 'Active' : 'Inactive'}
+                      {cart.isActive ? t('active') : t('inactive')}
                     </div>
                   </div>
                   
                   <p className="text-gray-300 text-sm line-clamp-2">{cart.description}</p>
                   
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Base Price (≤4hrs):</span>
-                    <span className="text-white font-medium">${cart.pricePerHour}</span>
+                    <span className="text-gray-400">{t('base_price_display')}</span>
+                    <span className="text-white font-medium">€{cart.pricePerHour}</span>
                   </div>
                   
                   {cart.extraHourPrice > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Extra Hour Price:</span>
-                      <span className="text-white font-medium">${cart.extraHourPrice}/hr</span>
+                      <span className="text-gray-400">{t('extra_hour_price_display')}</span>
+                      <span className="text-white font-medium">€{cart.extraHourPrice}/hr</span>
                     </div>
                   )}
                   
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Shipping Price:</span>
-                    <span className="text-white font-medium">${cart.shippingPrice || 0}</span>
+                    <span className="text-gray-400">{t('shipping_price_display')}</span>
+                    <span className="text-white font-medium">€{cart.shippingPrice || 0}</span>
                   </div>
                   
                   <div className="flex justify-between text-sm">
-                    <span className="text-white">Delivery Options:</span>
+                    <span className="text-white">{t('delivery_options_display')}</span>
                     <span className="text-white font-medium">
-                      {cart.pickupAvailable && cart.shippingAvailable ? 'Pickup & Shipping' : 
-                       cart.pickupAvailable ? 'Pickup Only' : 
-                       cart.shippingAvailable ? 'Shipping Only' : 'None'}
+                      {cart.pickupAvailable && cart.shippingAvailable ? t('pickup_and_shipping') : 
+                       cart.pickupAvailable ? t('pickup_only') : 
+                       cart.shippingAvailable ? t('shipping_only') : t('none')}
                     </span>
                   </div>
                   
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Serves:</span>
-                    <span className="text-white font-medium">Up to {cart.capacity} people</span>
+                    <span className="text-gray-400">{t('serves')}:</span>
+                    <span className="text-white font-medium">{t('up_to_people').replace('{count}', cart.capacity.toString())}</span>
                   </div>
                   
                   <div className="flex justify-between text-sm">
@@ -365,16 +502,19 @@ export default function FoodCartsPage() {
                       className="flex-1"
                       onClick={() => setEditingCart(cart)}
                     >
-                      ✏️ Edit
+                      {t('edit')}
                     </Button>
                     <Button 
                       size="sm" 
                       variant="outline" 
                       className="flex-1"
-                      onClick={() => handleUpdateCart({ isActive: !cart.isActive })}
+                      onClick={() => {
+                        setEditingCart(cart)
+                        handleUpdateCart({ isActive: !cart.isActive })
+                      }}
                       disabled={updating}
                     >
-                      {cart.isActive ? '🔴 Deactivate' : '🟢 Activate'}
+                      {cart.isActive ? t('deactivate') : t('activate')}
                     </Button>
                     <Button 
                       size="sm" 

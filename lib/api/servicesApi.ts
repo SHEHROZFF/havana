@@ -4,7 +4,7 @@ import type { Service } from '../../types/booking'
 export const servicesApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     // Get all services
-    getServices: builder.query<Service[], { cartId?: string; category?: string }>({
+    getServices: builder.query<Service[], { cartId?: string; category?: string; includeInactive?: boolean }>({
       query: (params = {}) => {
         const searchParams = new URLSearchParams()
         if (params.cartId) {
@@ -12,6 +12,9 @@ export const servicesApi = apiSlice.injectEndpoints({
         }
         if (params.category) {
           searchParams.append('category', params.category)
+        }
+        if (params.includeInactive) {
+          searchParams.append('includeInactive', 'true')
         }
         return `/services?${searchParams.toString()}`
       },

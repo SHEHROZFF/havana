@@ -11,12 +11,18 @@ export async function GET() {
       return NextResponse.json({
         environment: 'live',
         clientId: '',
+        clientSecret: '',
+        hasClientId: false,
+        hasClientSecret: false,
         updatedAt: null
       })
     }
     return NextResponse.json({
       environment: config.environment,
-      clientId: config.clientId.replace(/.(?=.{4})/g, '*'), // mask
+      clientId: config.clientId.replace(/.(?=.{4})/g, '*'), // mask for display
+      clientSecret: '***SECRET_SET***', // indicate secret exists
+      hasClientId: !!config.clientId,
+      hasClientSecret: !!config.clientSecret,
       updatedAt: config.updatedAt
     })
   } catch (e) {

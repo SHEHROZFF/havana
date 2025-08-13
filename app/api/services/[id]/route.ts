@@ -52,18 +52,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // TODO: Add authentication and authorization checks for admin users
 
+    // Build update data object with only provided fields
+    const updateData: any = {}
+    
+    if (name !== undefined) updateData.name = name
+    if (description !== undefined) updateData.description = description
+    if (pricePerHour !== undefined) updateData.pricePerHour = parseFloat(pricePerHour)
+    if (category !== undefined) updateData.category = category
+    if (cartId !== undefined) updateData.cartId = cartId || null
+    if (isActive !== undefined) updateData.isActive = isActive
+
     const service = await prisma.service.update({
       where: {
         id: id
       },
-      data: {
-        name,
-        description,
-        pricePerHour: parseFloat(pricePerHour),
-        category,
-        cartId: cartId || null,
-        isActive
-      },
+      data: updateData,
       include: {
         cart: {
           select: {

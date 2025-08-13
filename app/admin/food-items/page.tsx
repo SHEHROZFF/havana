@@ -10,8 +10,10 @@ import { useGetFoodItemsQuery, useCreateFoodItemMutation, useUpdateFoodItemMutat
 import { useGetFoodCartsQuery } from '../../../lib/api/foodCartsApi'
 import type { FoodItem, FoodCart } from '../../../types/booking'
 import { Plus, ChefHat } from 'lucide-react'
+import { useAdminI18n } from '../../../lib/i18n/admin-context'
 
 export default function FoodItemsPage() {
+  const { t } = useAdminI18n()
   const [showForm, setShowForm] = useState(false)
   const [editingItem, setEditingItem] = useState<FoodItem | null>(null)
   const [selectedCategory, setSelectedCategory] = useState('all')
@@ -32,13 +34,13 @@ export default function FoodItemsPage() {
     isLoading: itemsLoading,
     error: itemsError,
     refetch: refetchItems
-  } = useGetFoodItemsQuery({})
+  } = useGetFoodItemsQuery({ includeInactive: true }) // Admin should see all items including inactive ones
 
   const {
     data: foodCarts = [],
     isLoading: cartsLoading,
     error: cartsError
-  } = useGetFoodCartsQuery()
+  } = useGetFoodCartsQuery({})
 
   const [createFoodItem, { isLoading: creating }] = useCreateFoodItemMutation()
   const [updateFoodItem, { isLoading: updating }] = useUpdateFoodItemMutation()
@@ -63,7 +65,7 @@ export default function FoodItemsPage() {
   // Computed data from RTK Query
   const categories = ['all', ...Array.from(new Set(foodItems.map(item => item.category)))]
   const cartOptions = [
-    { value: '', label: 'Select a food cart' },
+    { value: '', label: t('select_cart') },
     ...foodCarts.map(cart => ({ value: cart.id, label: cart.name }))
   ]
   const categoryOptions = [
@@ -122,7 +124,7 @@ export default function FoodItemsPage() {
       })
     } catch (error) {
       console.error('Error saving item:', error)
-      alert('Failed to save food item. Please try again.')
+              alert(t('error_creating_item'))
     }
   }
 
@@ -146,7 +148,7 @@ export default function FoodItemsPage() {
         await deleteFoodItem(itemId).unwrap()
       } catch (error) {
         console.error('Error deleting item:', error)
-        alert('Failed to delete food item. Please try again.')
+        alert(t('error_deleting_item'))
       }
     }
   }
@@ -156,7 +158,7 @@ export default function FoodItemsPage() {
       await updateFoodItem({ id: itemId, isAvailable }).unwrap()
     } catch (error) {
       console.error('Error updating availability:', error)
-      alert('Failed to update item availability. Please try again.')
+              alert(t('error_updating_item'))
     }
   }
 
@@ -164,6 +166,7 @@ export default function FoodItemsPage() {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-teal-500 border-t-transparent"></div>
+        <span className="ml-4 text-white">{t('loading')}</span>
       </div>
     )
   }
@@ -174,16 +177,16 @@ export default function FoodItemsPage() {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">
-            Food Items Management
+            {t('food_items_management')}
           </h1>
           <p className="text-gray-400">
-            Manage menu items for all your food carts
+            {t('manage_menu_items')}
           </p>
         </div>
         <div className="mt-4 lg:mt-0">
           <Button onClick={() => setShowForm(true)}>
             <Plus className="w-4 h-4 mr-2" />
-            Add New Item
+            {t('add_food_item')}
           </Button>
         </div>
       </div>
@@ -193,18 +196,18 @@ export default function FoodItemsPage() {
         <CardContent className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Select
-              label="Filter by Cart"
+              label={t('filter_by_cart')}
               options={[
-                { value: 'all', label: 'All Carts' },
+                { value: 'all', label: t('all_carts') },
                 ...foodCarts.map(cart => ({ value: cart.id, label: cart.name }))
               ]}
               value={selectedCart}
               onChange={(e) => setSelectedCart(e.target.value)}
             />
             <Select
-              label="Filter by Category"
+              label={t('filter_by_category')}
               options={[
-                { value: 'all', label: 'All Categories' },
+                { value: 'all', label: t('all_categories') },
                 ...categories.filter(cat => cat !== 'all').map(cat => ({ value: cat, label: cat }))
               ]}
               value={selectedCategory}
@@ -220,22 +223,22 @@ export default function FoodItemsPage() {
         <Card className="bg-slate-700/50 backdrop-blur-sm border-slate-600">
           <CardHeader>
             <CardTitle className="text-white">
-              {editingItem ? 'Edit Food Item' : 'Add New Food Item'}
+              {editingItem ? t('edit') + ' ' + t('item_name') : t('add_food_item')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Input
-                  label="Item Name"
+                  label={t('item_name')}
                   value={formData.name}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                   required
-                  placeholder="e.g., Cuban Sandwich"
+                  placeholder={t('item_name_placeholder')}
                 />
                 
                 <Input
-                  label="Price ($)"
+                  label={t('price')}
                   type="number"
                   value={formData.price}
                   onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
@@ -245,7 +248,7 @@ export default function FoodItemsPage() {
                 />
                 
                 <Select
-                  label="Food Cart"
+                  label={t('food_cart')}
                   options={cartOptions}
                   value={formData.cartId}
                   onChange={(e) => setFormData(prev => ({ ...prev, cartId: e.target.value }))}
@@ -253,7 +256,7 @@ export default function FoodItemsPage() {
                 />
                 
                 <Select
-                  label="Category"
+                  label={t('category')}
                   options={categoryOptions}
                   value={formData.category}
                   onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
@@ -263,23 +266,23 @@ export default function FoodItemsPage() {
               
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Description
+                  {t('description')}
                 </label>
                 <textarea
                   className="w-full px-4 py-3 bg-slate-600 border border-slate-500 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all duration-300"
                   rows={3}
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Describe the food item..."
+                  placeholder={t('description_placeholder')}
                   required
                 />
               </div>
               
               <Input
-                label="Image URL"
+                label={t('image_url_optional')}
                 value={formData.image}
                 onChange={(e) => setFormData(prev => ({ ...prev, image: e.target.value }))}
-                placeholder="https://example.com/image.jpg"
+                placeholder={t('image_placeholder')}
               />
               
               {formData.image && (
@@ -306,13 +309,13 @@ export default function FoodItemsPage() {
                   className="w-4 h-4 text-teal-500 bg-slate-600 border-slate-500 rounded focus:ring-teal-500 focus:ring-2"
                 />
                 <label htmlFor="isAvailable" className="text-sm text-gray-300">
-                  Item is available for ordering
+                  {t('available')}
                 </label>
               </div>
               
               <div className="flex space-x-4">
                 <Button type="submit">
-                  {editingItem ? 'Update Item' : 'Add Item'}
+                  {editingItem ? t('update_item') : t('create_item')}
                 </Button>
                 <Button
                   type="button"
@@ -331,7 +334,7 @@ export default function FoodItemsPage() {
                     })
                   }}
                 >
-                  Cancel
+                  {t('cancel')}
                 </Button>
               </div>
             </form>
@@ -362,7 +365,7 @@ export default function FoodItemsPage() {
                       ? 'bg-green-500/20 text-green-400' 
                       : 'bg-red-500/20 text-red-400'
                   )}>
-                    {item.isAvailable ? 'Available' : 'Unavailable'}
+                    {item.isAvailable ? t('available') : t('unavailable')}
                   </span>
                 </div>
                 
@@ -372,15 +375,15 @@ export default function FoodItemsPage() {
                 
                 <div className="space-y-1 mb-3 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-gray-400">Price:</span>
-                    <span className="text-teal-400 font-bold">${item.price}</span>
+                    <span className="text-gray-400">{t('price_label')}</span>
+                    <span className="text-teal-400 font-bold">€{item.price}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-400">Category:</span>
+                    <span className="text-gray-400">{t('category_label')}</span>
                     <span className="text-white">{item.category}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-400">Cart:</span>
+                    <span className="text-gray-400">{t('cart_label')}</span>
                     <span className="text-white text-xs">{item.cartName}</span>
                   </div>
                 </div>
@@ -421,15 +424,15 @@ export default function FoodItemsPage() {
         <Card className="bg-slate-700/50 backdrop-blur-sm border-slate-600">
           <CardContent className="text-center py-12">
             <div className="text-6xl mb-4">🍽️</div>
-            <h3 className="text-xl font-semibold text-white mb-2">No food items found</h3>
+            <h3 className="text-xl font-semibold text-white mb-2">{t('no_food_items_yet')}</h3>
             <p className="text-gray-400 mb-4">
               {selectedCategory !== 'all' || selectedCart !== 'all' 
-                ? 'Try adjusting your filters or add new items.' 
-                : 'Get started by adding your first food item.'}
+                ? t('start_by_adding_items') 
+                : t('start_by_adding_items')}
             </p>
             <Button onClick={() => setShowForm(true)}>
               <Plus className="w-4 h-4 mr-2" />
-              Add Food Item
+              {t('add_your_first_item')}
             </Button>
           </CardContent>
         </Card>

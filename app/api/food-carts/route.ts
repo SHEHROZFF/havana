@@ -7,11 +7,14 @@ const DEFAULT_VAN_IMAGES = [
   'https://havana.gr/wp-content/uploads/2025/06/vintage-van-on-transparent-background-free-png.webp'
 ]
 
-// GET /api/food-carts - Get all active food carts
-export async function GET() {
+// GET /api/food-carts - Get all food carts (admin sees all, customers see only active)
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url)
+    const includeInactive = searchParams.get('includeInactive') === 'true'
+    
     const foodCarts = await prisma.foodCart.findMany({
-      where: {
+      where: includeInactive ? {} : {
         isActive: true
       },
       include: {

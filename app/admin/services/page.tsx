@@ -10,16 +10,11 @@ import { useGetServicesQuery, useCreateServiceMutation, useUpdateServiceMutation
 import { useGetFoodCartsQuery } from '../../../lib/api/foodCartsApi'
 import type { Service } from '../../../types/booking'
 import { Plus, Users, DollarSign, ClipboardList, Star } from 'lucide-react'
+import { useAdminI18n } from '../../../lib/i18n/admin-context'
 
 type ServiceCategory = 'STAFF' | 'KITCHEN' | 'SUPPORT' | 'MANAGEMENT' | 'SPECIAL'
 
-const SERVICE_CATEGORIES = [
-  { value: 'STAFF', label: 'Staff (Waiters, Servers)' },
-  { value: 'KITCHEN', label: 'Kitchen (Chefs, Cooks)' },
-  { value: 'SUPPORT', label: 'Support (Workers, Setup)' },
-  { value: 'MANAGEMENT', label: 'Management (Coordinators)' },
-  { value: 'SPECIAL', label: 'Special Services' }
-]
+// Moved SERVICE_CATEGORIES inside component to use translations
 
 const SERVICE_ICONS = {
   STAFF: Users,
@@ -38,6 +33,17 @@ const SERVICE_COLORS = {
 }
 
 export default function ServicesPage() {
+  const { t } = useAdminI18n()
+  
+  // Service categories with translations
+  const SERVICE_CATEGORIES = [
+    { value: 'STAFF', label: `${t('staff_category')} (${t('staff_description')})` },
+    { value: 'KITCHEN', label: `${t('kitchen_category')} (${t('kitchen_description')})` },
+    { value: 'SUPPORT', label: `${t('support_category')} (${t('support_description')})` },
+    { value: 'MANAGEMENT', label: `${t('management_category')} (${t('management_description')})` },
+    { value: 'SPECIAL', label: t('special_category') }
+  ]
+  
   const [showForm, setShowForm] = useState(false)
   const [editingService, setEditingService] = useState<Service | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | 'all'>('all')
@@ -57,14 +63,15 @@ export default function ServicesPage() {
     error: servicesError,
     refetch: refetchServices
   } = useGetServicesQuery({
-    category: selectedCategory !== 'all' ? selectedCategory : undefined
+    category: selectedCategory !== 'all' ? selectedCategory : undefined,
+    includeInactive: true // Admin should see all services including inactive ones
   })
 
   const {
     data: foodCarts = [],
     isLoading: cartsLoading,
     error: cartsError
-  } = useGetFoodCartsQuery()
+  } = useGetFoodCartsQuery({})
 
   const [createService, { isLoading: creating }] = useCreateServiceMutation()
   const [updateService, { isLoading: updating }] = useUpdateServiceMutation()
@@ -73,7 +80,7 @@ export default function ServicesPage() {
   const loading = servicesLoading || cartsLoading
 
   const cartOptions = [
-    { value: '', label: 'Global Service (All Carts)' },
+    { value: '', label: t('global_service') },
     ...foodCarts.map(cart => ({ value: cart.id, label: cart.name }))
   ]
 
@@ -104,7 +111,7 @@ export default function ServicesPage() {
       resetForm()
     } catch (error) {
       console.error('Error saving service:', error)
-      alert('Error saving service. Please try again.')
+      alert(editingService ? t('error_updating_service') : t('error_creating_service'))
     }
   }
 
@@ -140,7 +147,7 @@ export default function ServicesPage() {
         await deleteService(serviceId).unwrap()
       } catch (error) {
         console.error('Error deleting service:', error)
-        alert('Error deleting service. Please try again.')
+        alert(t('error_deleting_service'))
       }
     }
   }
@@ -157,6 +164,7 @@ export default function ServicesPage() {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-teal-500 border-t-transparent"></div>
+        <span className="ml-4 text-white">{t('loading')}</span>
       </div>
     )
   }
@@ -167,16 +175,16 @@ export default function ServicesPage() {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">
-            Services Management
+            {t('services_management')}
           </h1>
           <p className="text-gray-400">
-            Manage additional services like staff, chefs, and support workers
+            {t('manage_services_description')}
           </p>
         </div>
         <div className="mt-4 lg:mt-0">
           <Button onClick={() => setShowForm(true)}>
             <Plus className="w-4 h-4 mr-2" />
-            Add New Service
+            {t('add_service')}
           </Button>
         </div>
       </div>
@@ -187,7 +195,7 @@ export default function ServicesPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-400 text-sm">Total Services</p>
+                <p className="text-gray-400 text-sm">{t('total_services')}</p>
                 <p className="text-2xl font-bold text-white">{services.length}</p>
               </div>
               <div className="text-3xl">🎪</div>
@@ -199,7 +207,7 @@ export default function ServicesPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-400 text-sm">Active Services</p>
+                <p className="text-gray-400 text-sm">{t('active_services')}</p>
                 <p className="text-2xl font-bold text-green-400">
                   {services.filter(service => service.isActive).length}
                 </p>
@@ -213,7 +221,7 @@ export default function ServicesPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-400 text-sm">Staff Services</p>
+                <p className="text-gray-400 text-sm">{t('staff_services')}</p>
                 <p className="text-2xl font-bold text-blue-400">
                   {services.filter(service => service.category === 'STAFF').length}
                 </p>
@@ -229,9 +237,9 @@ export default function ServicesPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-400 text-sm">Avg. Price</p>
+                <p className="text-gray-400 text-sm">{t('avg_hourly_rate')}</p>
                 <p className="text-2xl font-bold text-teal-400">
-                  ${services.length > 0 ? (services.reduce((sum, s) => sum + s.pricePerHour, 0) / services.length).toFixed(0) : '0'}
+                  €{services.length > 0 ? (services.reduce((sum, s) => sum + s.pricePerHour, 0) / services.length).toFixed(0) : '0'}
                 </p>
               </div>
                               <div>
@@ -256,7 +264,7 @@ export default function ServicesPage() {
               )}
             >
               <span>🏪</span>
-              <span>All Services</span>
+              <span>{t('all_categories')}</span>
             </button>
             {SERVICE_CATEGORIES.map((category) => (
               <button
@@ -273,7 +281,7 @@ export default function ServicesPage() {
                   const IconComponent = SERVICE_ICONS[category.value as ServiceCategory]
                   return <IconComponent className="w-5 h-5" />
                 })()}
-                <span>{category.value}</span>
+                <span>{category.label}</span>
               </button>
             ))}
           </div>
@@ -285,33 +293,34 @@ export default function ServicesPage() {
         <Card className="bg-slate-700/50 backdrop-blur-sm border-slate-600">
           <CardHeader>
             <CardTitle className="text-white">
-              {editingService ? 'Edit Service' : 'Add New Service'}
+              {editingService ? t('edit') + ' ' + t('service_name') : t('add_service')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Input
-                  label="Service Name"
+                  label={t('service_name')}
                   value={formData.name}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                   required
-                  placeholder="e.g., Professional Waiter"
+                  placeholder={t('service_name_placeholder')}
                 />
                 
                 <Input
-                  label="Service Price ($)"
+                  label={t('price_per_hour')}
                   type="number"
                   value={formData.pricePerHour}
                   onChange={(e) => setFormData(prev => ({ ...prev, pricePerHour: e.target.value }))}
                   required
                   min="0"
                   step="0.01"
-                  placeholder="150.00"
+                  placeholder={t('price_per_hour_placeholder')}
+                  helperText={t('price_per_hour_helper')}
                 />
                 
                 <Select
-                  label="Category"
+                  label={t('service_category')}
                   options={SERVICE_CATEGORIES}
                   value={formData.category}
                   onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value as ServiceCategory }))}
@@ -319,7 +328,7 @@ export default function ServicesPage() {
                 />
                 
                 <Select
-                  label="Associated Cart"
+                  label={t('assign_to_cart')}
                   options={cartOptions}
                   value={formData.cartId}
                   onChange={(e) => setFormData(prev => ({ ...prev, cartId: e.target.value }))}
@@ -328,14 +337,14 @@ export default function ServicesPage() {
               
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Description
+                  {t('description')}
                 </label>
                 <textarea
                   className="w-full px-4 py-3 bg-slate-600 border border-slate-500 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all duration-300"
                   rows={3}
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Describe the service and what the staff member will do..."
+                  placeholder={t('description_placeholder')}
                   required
                 />
               </div>
@@ -349,20 +358,20 @@ export default function ServicesPage() {
                   className="w-4 h-4 text-teal-500 bg-slate-600 border-slate-500 rounded focus:ring-teal-500 focus:ring-2"
                 />
                 <label htmlFor="isActive" className="text-sm text-gray-300">
-                  Service is active and available for booking
+                  {t('available')}
                 </label>
               </div>
               
               <div className="flex space-x-4">
                 <Button type="submit">
-                  {editingService ? 'Update Service' : 'Add Service'}
+                  {editingService ? t('update_service') : t('create_service')}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={resetForm}
                 >
-                  Cancel
+                  {t('cancel')}
                 </Button>
               </div>
             </form>
@@ -375,15 +384,13 @@ export default function ServicesPage() {
         <Card className="bg-slate-700/50 backdrop-blur-sm border-slate-600">
           <CardContent className="text-center py-12">
             <div className="text-6xl mb-4">🎪</div>
-            <h3 className="text-xl font-semibold text-white mb-2">No Services Found</h3>
+            <h3 className="text-xl font-semibold text-white mb-2">{t('no_services_yet')}</h3>
             <p className="text-gray-400 mb-4">
-              {selectedCategory === 'all' 
-                ? 'Get started by adding your first service.'
-                : `No ${selectedCategory} services found. Try a different category or add a new service.`}
+              {t('start_by_adding_services')}
             </p>
             <Button onClick={() => setShowForm(true)}>
               <Plus className="w-4 h-4 mr-2" />
-              Add Service
+              {t('add_your_first_service')}
             </Button>
           </CardContent>
         </Card>
@@ -409,7 +416,7 @@ export default function ServicesPage() {
                         ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
                         : 'bg-red-500/20 text-red-400 border border-red-500/30'
                     )}>
-                      {service.isActive ? 'Active' : 'Inactive'}
+                      {service.isActive ? t('available') : t('unavailable')}
                     </span>
                   </div>
                   
@@ -419,16 +426,16 @@ export default function ServicesPage() {
                   
                   <div className="space-y-2 mb-4">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Category:</span>
+                      <span className="text-gray-400">{t('category_label')}</span>
                       <span className="text-white">{service.category}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Price:</span>
-                      <span className="text-teal-400 font-bold">${service.pricePerHour}</span>
+                      <span className="text-gray-400">{t('price_label')}</span>
+                      <span className="text-teal-400 font-bold">€{service.pricePerHour}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Scope:</span>
-                      <span className="text-white">{service.cartName || 'Global'}</span>
+                      <span className="text-gray-400">{t('cart_label')}</span>
+                      <span className="text-white">{service.cartName || t('global_service_label')}</span>
                     </div>
                   </div>
                   
@@ -439,7 +446,7 @@ export default function ServicesPage() {
                       onClick={() => handleEdit(service)}
                       className="flex-1"
                     >
-                      ✏️ Edit
+                      ✏️ {t('edit')}
                     </Button>
                     <Button
                       size="sm"

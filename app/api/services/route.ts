@@ -7,9 +7,13 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const cartId = searchParams.get('cartId')
     const category = searchParams.get('category')
+    const includeInactive = searchParams.get('includeInactive') === 'true'
 
-    const where: any = {
-      isActive: true
+    const where: any = {}
+    
+    // Only filter by isActive if not including inactive items
+    if (!includeInactive) {
+      where.isActive = true
     }
 
     if (cartId) {

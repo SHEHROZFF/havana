@@ -8,6 +8,8 @@ import { clsx } from 'clsx'
 import { isAuthenticated, logout } from '@/lib/auth'
 import { logOut, initializeAuth } from '../../lib/slices/authSlice'
 import type { RootState } from '../../lib/store'
+import { AdminI18nProvider, useAdminI18n } from '../../lib/i18n/admin-context'
+import AdminLanguageSwitcher from '../../components/ui/AdminLanguageSwitcher'
 import { 
   BarChart3, 
   Calendar, 
@@ -25,7 +27,8 @@ interface AdminLayoutProps {
   children: React.ReactNode
 }
 
-export default function AdminLayout({ children }: AdminLayoutProps) {
+function AdminLayoutInner({ children }: AdminLayoutProps) {
+  const { t } = useAdminI18n()
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const router = useRouter()
@@ -112,12 +115,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   } as const
 
   const navigation = [
-    { name: 'Dashboard', href: '/admin', icon: 'BarChart3', description: 'Overview & analytics' },
-    { name: 'Bookings', href: '/admin/bookings', icon: 'Calendar', description: 'Manage reservations' },
-    { name: 'Food Carts', href: '/admin/food-carts', icon: 'Truck', description: 'Cart management' },
-    { name: 'Food Items', href: '/admin/food-items', icon: 'ChefHat', description: 'Menu items' },
-    { name: 'Services', href: '/admin/services', icon: 'Users', description: 'Staff & services' },
-    { name: 'Payments', href: '/admin/payments', icon: 'CreditCard', description: 'PayPal settings' },
+    { name: t('dashboard'), href: '/admin', icon: 'BarChart3', description: t('dashboard_description') },
+    { name: t('bookings'), href: '/admin/bookings', icon: 'Calendar', description: t('bookings_description') },
+    { name: t('food_carts'), href: '/admin/food-carts', icon: 'Truck', description: t('food_carts_description') },
+    { name: t('food_items'), href: '/admin/food-items', icon: 'ChefHat', description: t('food_items_description') },
+    { name: t('services'), href: '/admin/services', icon: 'Users', description: t('services_description') },
+    { name: t('payments'), href: '/admin/payments', icon: 'CreditCard', description: t('payments_description') },
   ]
 
   return (
@@ -274,6 +277,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               </div>
               
               <div className="flex items-center space-x-4">
+                {/* Language Switcher */}
+                <AdminLanguageSwitcher />
+                
                 {/* Current date/time */}
                 <div className="hidden md:block text-sm text-gray-400">
                   {new Date().toLocaleDateString('en-US', {
@@ -299,5 +305,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         </main>
       </div>
     </div>
+  )
+}
+
+export default function AdminLayout({ children }: AdminLayoutProps) {
+  return (
+    <AdminI18nProvider>
+      <AdminLayoutInner>{children}</AdminLayoutInner>
+    </AdminI18nProvider>
   )
 }

@@ -62,23 +62,26 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // TODO: Add authentication and authorization checks for admin users
 
+    // Build update data object with only provided fields
+    const updateData: any = {}
+    
+    if (name !== undefined) updateData.name = name
+    if (description !== undefined) updateData.description = description
+    if (image !== undefined) updateData.image = image
+    if (location !== undefined) updateData.location = location
+    if (pricePerHour !== undefined) updateData.pricePerHour = parseFloat(pricePerHour)
+    if (extraHourPrice !== undefined) updateData.extraHourPrice = parseFloat(extraHourPrice || 0)
+    if (shippingPrice !== undefined) updateData.shippingPrice = parseFloat(shippingPrice || 0)
+    if (pickupAvailable !== undefined) updateData.pickupAvailable = pickupAvailable !== false
+    if (shippingAvailable !== undefined) updateData.shippingAvailable = shippingAvailable !== false
+    if (capacity !== undefined) updateData.capacity = parseInt(capacity)
+    if (isActive !== undefined) updateData.isActive = isActive
+
     const foodCart = await prisma.foodCart.update({
       where: {
         id: id
       },
-      data: {
-        name,
-        description,
-        image,
-        location,
-        pricePerHour: parseFloat(pricePerHour),
-        extraHourPrice: parseFloat(extraHourPrice || 0),
-        shippingPrice: parseFloat(shippingPrice || 0),
-        pickupAvailable: pickupAvailable !== false,
-        shippingAvailable: shippingAvailable !== false,
-        capacity: parseInt(capacity),
-        isActive
-      }
+      data: updateData
     })
 
     return NextResponse.json(foodCart)

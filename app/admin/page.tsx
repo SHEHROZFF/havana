@@ -5,6 +5,7 @@ import Button from '@/components/ui/Button'
 import Link from 'next/link'
 import { clsx } from 'clsx'
 import { useGetDashboardStatsQuery } from '../../lib/api/bookingsApi'
+import { useAdminI18n } from '../../lib/i18n/admin-context'
 import { 
   Calendar, 
   DollarSign, 
@@ -19,6 +20,7 @@ import {
 } from 'lucide-react'
 
 export default function AdminDashboard() {
+  const { t } = useAdminI18n()
   const {
     data: stats = {
       totalBookings: 0,
@@ -41,7 +43,7 @@ export default function AdminDashboard() {
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-teal-500 border-t-transparent mx-auto mb-4"></div>
-            <p className="text-white text-lg">Loading dashboard...</p>
+            <p className="text-white text-lg">{t('loading_dashboard')}</p>
           </div>
         </div>
       </div>
@@ -52,34 +54,34 @@ export default function AdminDashboard() {
 
   const statCards = [
     {
-      title: 'Total Bookings',
+      title: t('total_bookings'),
       value: stats.totalBookings.toLocaleString(),
       icon: Calendar,
-      trend: stats.totalBookings > 0 ? '+12%' : 'No data',
+      trend: stats.totalBookings > 0 ? '+12%' : t('no_data'),
       color: 'from-blue-500 to-blue-600',
       isEmpty: stats.totalBookings === 0
     },
     {
-      title: 'Total Revenue',
-      value: `$${stats.totalRevenue.toLocaleString()}`,
+      title: t('total_revenue'),
+      value: `€${stats.totalRevenue.toLocaleString()}`,
       icon: DollarSign,
-      trend: stats.totalRevenue > 0 ? '+8%' : 'No sales',
+      trend: stats.totalRevenue > 0 ? '+8%' : t('no_sales'),
       color: 'from-green-500 to-green-600',
       isEmpty: stats.totalRevenue === 0
     },
     {
-      title: 'Active Carts',
+      title: t('active_carts'),
       value: stats.activeCarts.toString(),
       icon: Truck,
-      trend: stats.activeCarts > 0 ? 'Available' : 'Add carts',
+      trend: stats.activeCarts > 0 ? t('available') : t('add_carts'),
       color: 'from-purple-500 to-purple-600',
       isEmpty: stats.activeCarts === 0
     },
     {
-      title: 'Today\'s Bookings',
+      title: t('today_bookings'),
       value: stats.todayBookings.toString(),
       icon: BarChart3,
-      trend: stats.todayBookings > 0 ? 'Active' : 'No bookings',
+      trend: stats.todayBookings > 0 ? t('active') : t('no_bookings'),
       color: 'from-teal-500 to-teal-600',
       isEmpty: stats.todayBookings === 0
     }
@@ -91,18 +93,18 @@ export default function AdminDashboard() {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">
-            Dashboard Overview
+            {t('dashboard_overview')}
           </h1>
           <p className="text-gray-400">
             {isEmpty 
-              ? 'Welcome! Get started by setting up your food cart business.'
-              : 'Here\'s what\'s happening with your food cart business.'}
+              ? t('welcome_message_empty')
+              : t('welcome_message_active')}
           </p>
           {error && (
             <div className="mt-2 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
               <div className="flex items-center">
                 <AlertTriangle className="w-4 h-4 mr-2" />
-                <p className="text-red-400 text-sm">Failed to load dashboard data</p>
+                <p className="text-red-400 text-sm">{t('failed_to_load_dashboard_data')}</p>
               </div>
             </div>
           )}
@@ -113,12 +115,12 @@ export default function AdminDashboard() {
               {stats.activeCarts === 0 ? (
                 <>
                   <Truck className="w-4 h-4 mr-2" />
-                  Add First Cart
+                  {t('add_first_cart')}
                 </>
               ) : (
                 <>
                   <Plus className="w-4 h-4 mr-2" />
-                  New Booking
+                  {t('new_booking')}
                 </>
               )}
             </Button>
@@ -166,9 +168,9 @@ export default function AdminDashboard() {
         <Card className="bg-slate-700/50 backdrop-blur-sm border-slate-600">
           <CardContent className="p-8 text-center">
             <div className="text-6xl mb-6">🚀</div>
-            <h2 className="text-2xl font-bold text-white mb-4">Welcome to Havana Admin!</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">{t('welcome_to_havana_admin')}</h2>
             <p className="text-gray-300 mb-8 max-w-2xl mx-auto">
-              Your food cart booking system is ready! Follow these steps to get started and begin accepting bookings.
+              {t('system_ready_message')}
             </p>
             
             <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
@@ -176,13 +178,13 @@ export default function AdminDashboard() {
                 <div className="mb-4">
               <Truck className="w-16 h-16 text-gray-400 mx-auto" />
             </div>
-                <h3 className="text-lg font-semibold text-white mb-2">1. Add Food Carts</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">{t('step_1_add_food_carts')}</h3>
                 <p className="text-gray-300 text-sm mb-4">
-                  Create your first food cart with Havana van images, pricing, and location details.
+                  {t('step_1_description')}
                 </p>
                 <Link href="/admin/food-carts">
                   <Button size="sm" className="w-full">
-                    Add Food Carts
+                    {t('add_food_carts')}
                   </Button>
                 </Link>
               </div>
@@ -191,13 +193,13 @@ export default function AdminDashboard() {
                 <div className="mb-4">
               <ChefHat className="w-16 h-16 text-gray-400 mx-auto" />
             </div>
-                <h3 className="text-lg font-semibold text-white mb-2">2. Create Menu Items</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">{t('step_2_create_menu_items')}</h3>
                 <p className="text-gray-300 text-sm mb-4">
-                  Add delicious food items with descriptions, prices, and categories for each cart.
+                  {t('step_2_description')}
                 </p>
                 <Link href="/admin/food-items">
                   <Button size="sm" variant="outline" className="w-full">
-                    Add Menu Items
+                    {t('add_menu_items')}
                   </Button>
                 </Link>
               </div>
@@ -206,13 +208,13 @@ export default function AdminDashboard() {
                 <div className="mb-4">
               <Calendar className="w-16 h-16 text-gray-400 mx-auto" />
             </div>
-                <h3 className="text-lg font-semibold text-white mb-2">3. Monitor Bookings</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">{t('step_3_monitor_bookings')}</h3>
                 <p className="text-gray-300 text-sm mb-4">
-                  Once customers start booking, manage all reservations and track your business.
+                  {t('step_3_description')}
                 </p>
                 <Link href="/admin/bookings">
                   <Button size="sm" variant="outline" className="w-full">
-                    View Bookings
+                    {t('view_bookings')}
                   </Button>
                 </Link>
               </div>
@@ -226,10 +228,10 @@ export default function AdminDashboard() {
           <Card className="bg-slate-700/50 backdrop-blur-sm border-slate-600">
             <CardHeader>
               <CardTitle className="text-white flex items-center justify-between">
-                <span>Recent Bookings</span>
+                <span>{t('recent_bookings')}</span>
                 <Link href="/admin/bookings">
                   <Button variant="ghost" size="sm" className="text-teal-400 hover:text-teal-300">
-                    View All
+                    {t('view_all')}
                   </Button>
                 </Link>
               </CardTitle>
@@ -240,8 +242,8 @@ export default function AdminDashboard() {
                   <div className="mb-2">
                     <Calendar className="w-10 h-10 text-gray-400 mx-auto" />
                   </div>
-                  <p className="text-gray-400">No bookings yet</p>
-                  <p className="text-gray-500 text-sm">Bookings will appear here once customers start booking</p>
+                  <p className="text-gray-400">{t('no_bookings_yet')}</p>
+                  <p className="text-gray-500 text-sm">{t('bookings_will_appear_message')}</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -250,12 +252,12 @@ export default function AdminDashboard() {
                       <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-teal-600 rounded-lg flex items-center justify-center">
                           <span className="text-white font-bold text-sm">
-                            {booking.customerFirstName?.charAt(0) || 'U'}
+                            {(booking as any).customerName?.charAt(0) || 'U'}
                           </span>
                         </div>
                         <div>
                           <p className="font-medium text-white">
-                            {`${booking.customerFirstName || ''} ${booking.customerLastName || ''}`.trim() || 'Unknown'}
+                            {(booking as any).customerName || 'Unknown'}
                           </p>
                           <p className="text-sm text-gray-400">{booking.eventDate}</p>
                         </div>
@@ -281,10 +283,10 @@ export default function AdminDashboard() {
           <Card className="bg-slate-700/50 backdrop-blur-sm border-slate-600">
             <CardHeader>
               <CardTitle className="text-white flex items-center justify-between">
-                <span>Food Carts Performance</span>
+                <span>{t('food_carts_performance')}</span>
                 <Link href="/admin/food-carts">
                   <Button variant="ghost" size="sm" className="text-teal-400 hover:text-teal-300">
-                    Manage
+                    {t('manage')}
                   </Button>
                 </Link>
               </CardTitle>
@@ -295,8 +297,8 @@ export default function AdminDashboard() {
                   <div className="mb-2">
                     <Truck className="w-10 h-10 text-gray-400 mx-auto" />
                   </div>
-                  <p className="text-gray-400">No cart data available</p>
-                  <p className="text-gray-500 text-sm">Add food carts to see performance metrics</p>
+                  <p className="text-gray-400">{t('no_cart_data_available')}</p>
+                  <p className="text-gray-500 text-sm">{t('add_food_carts_to_see_metrics')}</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -308,12 +310,12 @@ export default function AdminDashboard() {
                         </div>
                         <div>
                           <p className="font-medium text-white">{cart.name}</p>
-                          <p className="text-sm text-gray-400">{cart.bookings} bookings</p>
+                          <p className="text-sm text-gray-400">{t('bookings_count').replace('{count}', cart.bookings)}</p>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-white">${cart.revenue.toLocaleString()}</p>
-                        <p className="text-sm text-teal-400">Revenue</p>
+                        <p className="text-sm text-teal-400">{t('revenue')}</p>
                       </div>
                     </div>
                   ))}
@@ -327,31 +329,31 @@ export default function AdminDashboard() {
       {/* Quick Actions */}
       <Card className="bg-slate-700/50 backdrop-blur-sm border-slate-600">
         <CardHeader>
-          <CardTitle className="text-white">Quick Actions</CardTitle>
+          <CardTitle className="text-white">{t('quick_actions')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Link href="/admin/bookings">
               <Button variant="outline" className="flex flex-col items-center p-6 h-auto w-full">
                 <Calendar className="w-8 h-8 mb-2" />
-                <span className="text-sm">View Bookings</span>
+                <span className="text-sm">{t('view_bookings')}</span>
               </Button>
             </Link>
             <Link href="/admin/food-carts">
               <Button variant="outline" className="flex flex-col items-center p-6 h-auto w-full">
                 <Truck className="w-8 h-8 mb-2" />
-                <span className="text-sm">Manage Carts</span>
+                <span className="text-sm">{t('manage_carts')}</span>
               </Button>
             </Link>
             <Link href="/admin/food-items">
               <Button variant="outline" className="flex flex-col items-center p-6 h-auto w-full">
                 <ChefHat className="w-8 h-8 mb-2" />
-                <span className="text-sm">Edit Menu</span>
+                <span className="text-sm">{t('edit_menu')}</span>
               </Button>
             </Link>
             <Button variant="outline" className="flex flex-col items-center p-6 h-auto" disabled={isEmpty}>
               <BarChart3 className="w-8 h-8 mb-2" />
-              <span className="text-sm">View Reports</span>
+              <span className="text-sm">{t('view_reports')}</span>
             </Button>
           </div>
         </CardContent>
@@ -364,7 +366,7 @@ export default function AdminDashboard() {
             <div className="flex items-center space-x-2">
               <div className={`w-3 h-3 rounded-full ${error ? 'bg-red-400' : 'bg-green-400'}`}></div>
               <span className="text-sm text-gray-300">
-                {error ? 'System experiencing issues' : 'All systems operational'}
+                {error ? t('system_experiencing_issues') : t('all_systems_operational')}
               </span>
             </div>
             {error && (
@@ -373,7 +375,7 @@ export default function AdminDashboard() {
                 variant="outline"
                 onClick={() => refetch()}
               >
-                🔄 Retry
+                {t('retry')}
               </Button>
             )}
           </div>

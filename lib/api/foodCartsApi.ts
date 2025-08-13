@@ -4,8 +4,14 @@ import type { FoodCart } from '../../types/booking'
 export const foodCartsApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     // Get all food carts
-    getFoodCarts: builder.query<FoodCart[], void>({
-      query: () => '/food-carts',
+    getFoodCarts: builder.query<FoodCart[], { includeInactive?: boolean }>({
+      query: (params = {}) => {
+        const searchParams = new URLSearchParams()
+        if (params.includeInactive) {
+          searchParams.append('includeInactive', 'true')
+        }
+        return `/food-carts?${searchParams.toString()}`
+      },
       providesTags: ['FoodCart'],
     }),
 
@@ -19,7 +25,7 @@ export const foodCartsApi = apiSlice.injectEndpoints({
     createFoodCart: builder.mutation<FoodCart, {
       name: string
       description: string
-      cuisine: string
+      location: string
       pricePerHour: number
       extraHourPrice?: number
       shippingPrice?: number
@@ -42,7 +48,7 @@ export const foodCartsApi = apiSlice.injectEndpoints({
       id: string
       name?: string
       description?: string
-      cuisine?: string
+      location?: string
       pricePerHour?: number
       extraHourPrice?: number
       shippingPrice?: number
