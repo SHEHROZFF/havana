@@ -229,7 +229,7 @@ export default function ServicesPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-400 text-sm">Avg. Rate/Hour</p>
+                <p className="text-gray-400 text-sm">Avg. Price</p>
                 <p className="text-2xl font-bold text-teal-400">
                   ${services.length > 0 ? (services.reduce((sum, s) => sum + s.pricePerHour, 0) / services.length).toFixed(0) : '0'}
                 </p>
@@ -300,14 +300,14 @@ export default function ServicesPage() {
                 />
                 
                 <Input
-                  label="Price per Hour ($)"
+                  label="Service Price ($)"
                   type="number"
                   value={formData.pricePerHour}
                   onChange={(e) => setFormData(prev => ({ ...prev, pricePerHour: e.target.value }))}
                   required
                   min="0"
                   step="0.01"
-                  placeholder="25.00"
+                  placeholder="150.00"
                 />
                 
                 <Select
@@ -423,7 +423,7 @@ export default function ServicesPage() {
                       <span className="text-white">{service.category}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Rate/Hour:</span>
+                      <span className="text-gray-400">Price:</span>
                       <span className="text-teal-400 font-bold">${service.pricePerHour}</span>
                     </div>
                     <div className="flex justify-between text-sm">

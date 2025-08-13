@@ -18,6 +18,10 @@ export default function FoodCartsPage() {
     cuisine: '',
     location: '',
     pricePerHour: 0,
+    extraHourPrice: 0,
+    shippingPrice: 0,
+    pickupAvailable: true,
+    shippingAvailable: true,
     capacity: 0,
     features: [] as string[],
     image: ''
@@ -46,6 +50,10 @@ export default function FoodCartsPage() {
         cuisine: '',
         location: '',
         pricePerHour: 0,
+        extraHourPrice: 0,
+        shippingPrice: 0,
+        pickupAvailable: true,
+        shippingAvailable: true,
         capacity: 0,
         features: [],
         image: ''
@@ -168,14 +176,31 @@ export default function FoodCartsPage() {
                 required
               />
 
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid md:grid-cols-3 gap-4">
                 <Input
-                  label="Price per Hour ($)"
+                  label="Base Price (up to 4hrs) ($)"
                   type="number"
                   value={newCart.pricePerHour}
                   onChange={(e) => setNewCart({ ...newCart, pricePerHour: parseFloat(e.target.value) || 0 })}
-                  placeholder="0"
+                  placeholder="600"
+                  helperText="Fixed price for bookings up to 4 hours"
                   required
+                />
+                <Input
+                  label="Extra Hour Price ($)"
+                  type="number"
+                  value={newCart.extraHourPrice}
+                  onChange={(e) => setNewCart({ ...newCart, extraHourPrice: parseFloat(e.target.value) || 0 })}
+                  placeholder="50"
+                  helperText="Price per hour beyond 4 hours"
+                />
+                <Input
+                  label="Shipping Price ($)"
+                  type="number"
+                  value={newCart.shippingPrice}
+                  onChange={(e) => setNewCart({ ...newCart, shippingPrice: parseFloat(e.target.value) || 0 })}
+                  placeholder="100"
+                  helperText="Delivery cost to customer location"
                 />
                 <Input
                   label="Food Serving Capacity"
@@ -194,6 +219,37 @@ export default function FoodCartsPage() {
                 onChange={(e) => setNewCart({ ...newCart, image: e.target.value })}
                 placeholder="https://..."
               />
+
+              {/* Delivery Options */}
+              <div className="space-y-4">
+                <h4 className="font-semibold text-white">Delivery Options</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      id="pickupAvailable"
+                      checked={newCart.pickupAvailable}
+                      onChange={(e) => setNewCart({ ...newCart, pickupAvailable: e.target.checked })}
+                      className="w-4 h-4 text-teal-500 bg-gray-100 border-gray-300 rounded focus:ring-teal-500"
+                    />
+                    <label htmlFor="pickupAvailable" className="text-sm font-medium text-white">
+                      Pickup Available
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      id="shippingAvailable"
+                      checked={newCart.shippingAvailable}
+                      onChange={(e) => setNewCart({ ...newCart, shippingAvailable: e.target.checked })}
+                      className="w-4 h-4 text-teal-500 bg-gray-100 border-gray-300 rounded focus:ring-teal-500"
+                    />
+                    <label htmlFor="shippingAvailable" className="text-sm font-medium text-white">
+                      Shipping Available
+                    </label>
+                  </div>
+                </div>
+              </div>
 
               <div className="flex justify-end space-x-3">
                 <Button 
@@ -267,8 +323,29 @@ export default function FoodCartsPage() {
                   <p className="text-gray-300 text-sm line-clamp-2">{cart.description}</p>
                   
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Price/Hour:</span>
+                    <span className="text-gray-400">Base Price (≤4hrs):</span>
                     <span className="text-white font-medium">${cart.pricePerHour}</span>
+                  </div>
+                  
+                  {cart.extraHourPrice > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Extra Hour Price:</span>
+                      <span className="text-white font-medium">${cart.extraHourPrice}/hr</span>
+                    </div>
+                  )}
+                  
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Shipping Price:</span>
+                    <span className="text-white font-medium">${cart.shippingPrice || 0}</span>
+                  </div>
+                  
+                  <div className="flex justify-between text-sm">
+                    <span className="text-white">Delivery Options:</span>
+                    <span className="text-white font-medium">
+                      {cart.pickupAvailable && cart.shippingAvailable ? 'Pickup & Shipping' : 
+                       cart.pickupAvailable ? 'Pickup Only' : 
+                       cart.shippingAvailable ? 'Shipping Only' : 'None'}
+                    </span>
                   </div>
                   
                   <div className="flex justify-between text-sm">

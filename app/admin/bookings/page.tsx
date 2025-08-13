@@ -65,10 +65,17 @@ export default function BookingsPage() {
   ]
 
   const filteredBookings = displayBookings.filter(booking => {
-    const matchesSearch = booking.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         booking.customerEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (booking.cartName || '').toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || booking.status === statusFilter
+    const name = (booking as any).customerName || `${(booking as any).customerFirstName || ''} ${(booking as any).customerLastName || ''}`.trim()
+    const email = (booking as any).customerEmail || ''
+    const cart = (booking as any).cartName || ''
+
+    const search = searchTerm.toLowerCase()
+    const matchesSearch = name.toLowerCase().includes(search) ||
+                          email.toLowerCase().includes(search) ||
+                          cart.toLowerCase().includes(search)
+
+    const status = (booking as any).status || ''
+    const matchesStatus = statusFilter === 'all' || status.toUpperCase() === statusFilter.toUpperCase()
     return matchesSearch && matchesStatus
   })
 
@@ -159,12 +166,12 @@ export default function BookingsPage() {
                       <div className="flex items-center space-x-4 mb-3">
                         <div className="w-12 h-12 bg-gradient-to-br from-teal-500 to-teal-600 rounded-lg flex items-center justify-center">
                           <span className="text-white font-bold">
-                            {booking.customerName.charAt(0)}
+                            {`${(booking as any).customerFirstName || ''}${(booking as any).customerLastName ? ' ' + (booking as any).customerLastName : ''}`.trim().charAt(0)}
                           </span>
                         </div>
                         <div>
                           <h3 className="font-semibold text-white text-lg">
-                            {booking.customerName}
+                            {`${(booking as any).customerFirstName || ''} ${(booking as any).customerLastName || ''}`.trim()}
                           </h3>
                           <p className="text-gray-400 text-sm">
                             {booking.customerEmail} • {booking.customerPhone}

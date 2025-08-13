@@ -5,10 +5,14 @@ export interface FoodCart {
   image?: string
   location?: string
   cuisine?: string
-  pricePerHour: number
+  pricePerHour: number // Base price for up to 4 hours
+  extraHourPrice: number // Price per extra hour beyond 4 hours
   capacity: number
   isActive: boolean
   features?: string[]
+  shippingPrice: number // Shipping/delivery price
+  pickupAvailable: boolean // Whether pickup is available
+  shippingAvailable: boolean // Whether shipping/delivery is available
   createdAt?: string
   updatedAt?: string
   foodItems?: FoodItem[]
@@ -30,7 +34,7 @@ export interface Service {
   id: string
   name: string
   description: string
-  pricePerHour: number
+  pricePerHour: number // Keep this name for database compatibility but represents fixed price
   category: ServiceCategory
   isActive: boolean
   cartId?: string
@@ -39,9 +43,15 @@ export interface Service {
 
 export interface Booking {
   id: string
-  customerName: string
+  customerFirstName: string
+  customerLastName: string
   customerEmail: string
   customerPhone: string
+  customerAddress: string
+  customerCity: string
+  customerState: string
+  customerZip: string
+  customerCountry: string
   cartId: string
   cartName?: string
   eventDate: string
@@ -92,8 +102,9 @@ export interface BookingFormData {
   selectedServices: {
     serviceId: string
     quantity: number
-    hours: number
-    pricePerHour: number
+    price: number
+    hours?: number
+    pricePerHour?: number
   }[]
   
   // Step 3: Timing (ENHANCED - Now Dynamic)
@@ -104,15 +115,29 @@ export interface BookingFormData {
   isCustomTiming: boolean
   timeSlotType?: string
   
-  // Step 4: Customer Information
-  customerName: string
+  // Step 4: Delivery Options
+  deliveryMethod: 'pickup' | 'shipping'
+  shippingAddress?: string
+  shippingCity?: string
+  shippingState?: string
+  shippingZip?: string
+  shippingAmount: number
+  
+  // Step 5: Customer Information
+  customerFirstName: string
+  customerLastName: string
   customerEmail: string
   customerPhone: string
+  customerAddress: string
+  customerCity: string
+  customerState: string
+  customerZip: string
+  customerCountry: string
   eventType: string
   guestCount: number
   specialNotes?: string
   
-  // Step 5: Payment (ENHANCED)
+  // Step 6: Payment (ENHANCED)
   totalAmount: number
   cartServiceAmount: number
   servicesAmount: number
@@ -136,19 +161,19 @@ export const BOOKING_STEPS = [
     description: 'Choose your food cart'
   },
   {
-    id: 'food-selection',
-    title: 'Select Food',
-    description: 'Pick your menu items'
-  },
-  {
-    id: 'services-selection',
-    title: 'Select Services',
-    description: 'Add staff & services'
+    id: 'extras',
+    title: 'Add Extras',
+    description: 'Food & services (optional)'
   },
   {
     id: 'timing',
     title: 'Choose Time',
     description: 'Select date and time'
+  },
+  {
+    id: 'delivery',
+    title: 'Pickup or Shipping',
+    description: 'Choose delivery method'
   },
   {
     id: 'customer-info',

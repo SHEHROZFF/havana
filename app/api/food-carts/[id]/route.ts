@@ -58,7 +58,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
     const body = await request.json()
-    const { name, description, image, location, pricePerHour, capacity, isActive } = body
+    const { name, description, image, location, pricePerHour, extraHourPrice, shippingPrice, pickupAvailable, shippingAvailable, capacity, isActive } = body
 
     // TODO: Add authentication and authorization checks for admin users
 
@@ -72,6 +72,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         image,
         location,
         pricePerHour: parseFloat(pricePerHour),
+        extraHourPrice: parseFloat(extraHourPrice || 0),
+        shippingPrice: parseFloat(shippingPrice || 0),
+        pickupAvailable: pickupAvailable !== false,
+        shippingAvailable: shippingAvailable !== false,
         capacity: parseInt(capacity),
         isActive
       }

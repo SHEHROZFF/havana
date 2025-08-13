@@ -250,16 +250,18 @@ export default function AdminDashboard() {
                       <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-teal-600 rounded-lg flex items-center justify-center">
                           <span className="text-white font-bold text-sm">
-                            {booking.customerName.charAt(0)}
+                            {booking.customerFirstName?.charAt(0) || 'U'}
                           </span>
                         </div>
                         <div>
-                          <p className="font-medium text-white">{booking.customerName}</p>
+                          <p className="font-medium text-white">
+                            {`${booking.customerFirstName || ''} ${booking.customerLastName || ''}`.trim() || 'Unknown'}
+                          </p>
                           <p className="text-sm text-gray-400">{booking.eventDate}</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-white">${booking.totalAmount}</p>
+                        <p className="font-bold text-white">€{booking.totalAmount}</p>
                         <span className={`text-xs px-2 py-1 rounded-full ${
                           booking.status === 'CONFIRMED' 
                             ? 'bg-green-500/20 text-green-400' 

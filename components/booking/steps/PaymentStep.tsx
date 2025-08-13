@@ -1,17 +1,14 @@
 'use client'
 
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { BookingFormData } from '@/types/booking'
 import Button from '@/components/ui/Button'
-import Input from '@/components/ui/Input'
-import Select from '@/components/ui/Select'
 import { clsx } from 'clsx'
 import { useCreateBookingMutation } from '../../../lib/api/bookingsApi'
-import { CreditCard, DollarSign, Wallet, CheckCircle, Calendar, Users, Clock, Receipt, Shield, Lock } from 'lucide-react'
-import { Swiper, SwiperSlide } from 'swiper/react'
-import { FreeMode, Mousewheel } from 'swiper/modules'
-import 'swiper/css'
-import 'swiper/css/free-mode'
+import { DollarSign, CheckCircle, Calendar, Users, Clock, Receipt, Shield, Truck, MapPin } from 'lucide-react'
+import PaymentSkeleton from '@/components/ui/skeletons/PaymentSkeleton'
+import { PayPalButtons, PayPalScriptProvider } from '@paypal/react-paypal-js'
+import { useI18n } from '@/lib/i18n/context'
 
 interface PaymentStepProps {
   formData: Partial<BookingFormData>
@@ -21,78 +18,59 @@ interface PaymentStepProps {
 }
 
 export default function PaymentStep({ formData, updateFormData, onPrevious, onComplete }: PaymentStepProps) {
-  const [paymentMethod, setPaymentMethod] = useState(formData.paymentMethod || 'credit-card')
-  const [paymentInfo, setPaymentInfo] = useState({
-    cardNumber: '',
-    expiryDate: '',
-    cvv: '',
-    cardholderName: ''
-  })
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [selectedCategory, setSelectedCategory] = useState<'payment' | 'summary'>('payment')
-  const swiperRef = useRef<any>(null)
+  const { t } = useI18n()
+  const [isProcessing, setIsProcessing] = useState(false)
 
   // RTK Query mutation
-  const [createBooking, { isLoading: processing }] = useCreateBookingMutation()
+  const [createBooking, { isLoading: creating }] = useCreateBookingMutation()
 
-  // Reset swiper position when category changes
-  useEffect(() => {
-    if (swiperRef.current && swiperRef.current.swiper) {
-      setTimeout(() => {
-        if (swiperRef.current && swiperRef.current.swiper) {
-          swiperRef.current.swiper.slideTo(0, 500)
-        }
-      }, 100)
-    }
-  }, [selectedCategory])
-
-  const paymentMethodOptions = [
-    { value: 'credit-card', label: 'Credit/Debit Card', description: 'Secure card payment', icon: CreditCard },
-    { value: 'paypal', label: 'PayPal', description: 'Pay with PayPal account', icon: Wallet },
-    { value: 'cash', label: 'Cash on Delivery', description: 'Pay when cart arrives', icon: DollarSign },
-  ]
-
-  const categories = ['payment', 'summary']
-
-  const handleInputChange = (field: string, value: string) => {
-    setPaymentInfo(prev => ({ ...prev, [field]: value }))
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }))
-    }
+  // PayPal configuration (fallback to hardcoded LIVE client ID if env is missing)
+  const PAYPAL_CLIENT_ID_FALLBACK = 'AaAvl-glJBrSlcZRjsc14h8MTLK03fxDnhTQlE1_gW-TrMyFbmsHB3d3JBQP3j411BVIju9nK8zcn3hA'
+  const resolvedClientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID_FALLBACK
+  const hasPayPalCredentials = !!resolvedClientId
+  const paypalOptions = {
+    clientId: resolvedClientId,
+    currency: 'EUR',
+    intent: 'capture',
+    disableFunding: 'paylater,credit',
+    enableFunding: 'card,paypal'
   }
 
-  const validatePaymentForm = () => {
-    const newErrors: Record<string, string> = {}
-    
-    if (paymentMethod === 'credit-card') {
-      if (!paymentInfo.cardNumber) {
-        newErrors.cardNumber = 'Card number is required'
-      }
-      
-      if (!paymentInfo.cardholderName) {
-        newErrors.cardholderName = 'Cardholder name is required'
-      }
-      
-      if (!paymentInfo.expiryDate) {
-        newErrors.expiryDate = 'Expiry date is required'
-      }
-      
-      if (!paymentInfo.cvv) {
-        newErrors.cvv = 'CVV is required'
-      }
-    }
-    
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
-  const handlePayment = async () => {
-    if (!validatePaymentForm()) {
-      return
-    }
-
+  // Create PayPal order
+  const createOrder = async () => {
     try {
-      // Update form data with final payment info
+      const response = await fetch('/api/paypal/create-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: total.toFixed(2),
+          currency: 'EUR',
+          description: `Food Cart Booking - ${formData.eventType} for ${formData.guestCount} guests`
+        })
+      })
+
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create PayPal order')
+      }
+
+      return data.orderID
+    } catch (error) {
+      console.error('Create order error:', error)
+      alert(`Failed to create PayPal order: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      throw error
+    }
+  }
+
+  // Capture PayPal payment
+  const onApprove = async (data: any) => {
+    setIsProcessing(true)
+    
+    try {
+      // First, create the booking in our database
       const finalFormData: BookingFormData = {
         // Cart Selection
         selectedCartId: formData.selectedCartId!,
@@ -110,354 +88,423 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
         timeSlotType: formData.timeSlotType,
         
         // Customer Info
-        customerName: formData.customerName!,
+        customerFirstName: formData.customerFirstName!,
+        customerLastName: formData.customerLastName!,
         customerEmail: formData.customerEmail!,
         customerPhone: formData.customerPhone!,
+        customerAddress: formData.customerAddress!,
+        customerCity: formData.customerCity!,
+        customerState: formData.customerState!,
+        customerZip: formData.customerZip!,
+        customerCountry: formData.customerCountry!,
         eventType: formData.eventType!,
         guestCount: formData.guestCount!,
         specialNotes: formData.specialNotes,
         
+        // Delivery
+        deliveryMethod: formData.deliveryMethod || 'pickup',
+        shippingAddress: formData.shippingAddress,
+        shippingCity: formData.shippingCity,
+        shippingState: formData.shippingState,
+        shippingZip: formData.shippingZip,
+        shippingAmount: formData.shippingAmount || 0,
+        
         // Payment
-        paymentMethod,
+        paymentMethod: 'paypal',
         totalAmount: total,
         cartServiceAmount: formData.cartServiceAmount || 0,
         servicesAmount: formData.servicesAmount || 0,
-        foodAmount: formData.selectedItems?.reduce((sum, item) => sum + (item.quantity * item.price), 0) || 0
+        foodAmount: formData.selectedItems?.reduce((sum, item) => sum + item.price, 0) || 0
       }
 
-      updateFormData(finalFormData)
-
-      // Create booking via RTK Query
       const booking = await createBooking(finalFormData).unwrap()
-      alert(`Booking confirmed! Booking ID: ${booking.id}. You will receive a confirmation email at ${formData.customerEmail}`)
-      onComplete()
+
+      // Then capture the PayPal payment
+      const captureResponse = await fetch('/api/paypal/capture-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderID: data.orderID
+        })
+      })
+
+      const captureData = await captureResponse.json()
+      
+      if (!captureResponse.ok) {
+        throw new Error(captureData.error || t('failed_to_capture_paypal'))
+      }
+
+      if (captureData.success) {
+        updateFormData(finalFormData)
+        
+        alert(
+          `${t('payment_success_title')}\n\n` +
+          `${t('booking_id_label')}: ${booking.id}\n` +
+          `${t('transaction_id_label')}: ${captureData.captureId}\n` +
+          `${t('amount_paid_label')}: $${captureData.amount} ${captureData.currency}\n` +
+          `${t('payment_method_label')}: ${t('payment_method_paypal')}\n\n` +
+          `${t('confirmation_email_sent').replace('{email}', formData.customerEmail || '')}\n\n` +
+          `${t('thank_you_booking')}`
+        )
+        onComplete()
+      } else {
+        throw new Error(t('payment_failed_title'))
+      }
     } catch (error) {
-      console.error('Payment failed:', error)
-      alert('Booking failed. Please try again.')
+      console.error('Payment capture failed:', error)
+      alert(
+        `${t('payment_failed_title')}\n\n` +
+        `${error instanceof Error ? error.message : t('unknown_error_occurred')}\n\n` +
+        `${t('try_again_or_contact_support')}`
+      )
+    } finally {
+      setIsProcessing(false)
     }
   }
 
-  const calculateBreakdown = () => {
+  // Handle PayPal errors
+  const onError = (error: any) => {
+    console.error('PayPal error:', error)
+    alert(`${t('payment_failed_title')}\n\n${error.message || t('unknown_error_occurred')}`)
+    setIsProcessing(false)
+  }
+
+  // Handle PayPal cancel
+  const onCancel = () => {
+    alert(t('payment_cancelled_message'))
+    setIsProcessing(false)
+  }
+
+  // Fallback simulation payment for when PayPal credentials are not set
+  const handleSimulationPayment = async () => {
+    setIsProcessing(true)
+
+    try {
+      // Create the booking data
+      const finalFormData: BookingFormData = {
+        // Cart Selection
+        selectedCartId: formData.selectedCartId!,
+        
+        // Food & Services
+        selectedItems: formData.selectedItems || [],
+        selectedServices: formData.selectedServices || [],
+        
+        // Timing
+        bookingDate: formData.bookingDate!,
+        startTime: formData.startTime!,
+        endTime: formData.endTime!,
+        totalHours: formData.totalHours!,
+        isCustomTiming: formData.isCustomTiming || false,
+        timeSlotType: formData.timeSlotType,
+        
+        // Customer Info
+        customerFirstName: formData.customerFirstName!,
+        customerLastName: formData.customerLastName!,
+        customerEmail: formData.customerEmail!,
+        customerPhone: formData.customerPhone!,
+        customerAddress: formData.customerAddress!,
+        customerCity: formData.customerCity!,
+        customerState: formData.customerState!,
+        customerZip: formData.customerZip!,
+        customerCountry: formData.customerCountry!,
+        eventType: formData.eventType!,
+        guestCount: formData.guestCount!,
+        specialNotes: formData.specialNotes,
+        
+        // Delivery
+        deliveryMethod: formData.deliveryMethod || 'pickup',
+        shippingAddress: formData.shippingAddress,
+        shippingCity: formData.shippingCity,
+        shippingState: formData.shippingState,
+        shippingZip: formData.shippingZip,
+        shippingAmount: formData.shippingAmount || 0,
+        
+        // Payment
+        paymentMethod: 'simulation',
+        totalAmount: total,
+        cartServiceAmount: formData.cartServiceAmount || 0,
+        servicesAmount: formData.servicesAmount || 0,
+        foodAmount: formData.selectedItems?.reduce((sum, item) => sum + item.price, 0) || 0
+      }
+
+      const booking = await createBooking(finalFormData).unwrap()
+
+      // Simulate payment processing
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      const confirmPayment = confirm(
+        `${t('payment_simulation_title')}\n\n` +
+        `${t('amount_paid_label')}: $${total.toFixed(2)}\n` +
+        `${t('booking_id_label')}: ${booking.id}\n\n` +
+        `${t('click_ok_to_simulate_success')}\n` +
+        `${t('click_cancel_to_simulate_failure')}`
+      )
+
+      if (confirmPayment) {
+        updateFormData(finalFormData)
+        
+        alert(
+          `${t('payment_simulation_success_title')}\n\n` +
+          `${t('booking_id_label')}: ${booking.id}\n` +
+          `${t('amount_paid_label')}: $${total.toFixed(2)}\n` +
+          `${t('payment_method_label')}: ${t('payment_method_simulation')}\n\n` +
+          `${t('confirmation_email_sent').replace('{email}', formData.customerEmail || '')}\n\n` +
+          `${t('thank_you_booking')}`
+        )
+      onComplete()
+      } else {
+        throw new Error(t('payment_cancelled_message'))
+      }
+    } catch (error) {
+      console.error('Payment simulation failed:', error)
+      alert(
+        `${t('payment_simulation_failed_title')}\n\n` +
+        `${error instanceof Error ? error.message : t('unknown_error_occurred')}\n\n` +
+        `${t('try_again_or_contact_support')}`
+      )
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  // Calculate order totals (NO TAX)
+  const calculateTotals = useMemo(() => {
     const foodTotal = formData.selectedItems?.reduce((sum, item) => sum + (item.quantity * item.price), 0) || 0
-    const servicesTotal = formData.selectedServices?.reduce((sum, service) => sum + (service.quantity * service.pricePerHour * (service.hours || 1)), 0) || 0
+    const servicesTotal = formData.selectedServices?.reduce((sum, service) => sum + (service.quantity * service.price), 0) || 0
     const cartTotal = formData.cartServiceAmount || 0
-    const taxRate = 0.08
-    const subtotal = foodTotal + servicesTotal + cartTotal
-    const tax = subtotal * taxRate
-    const total = subtotal + tax
+    const shippingTotal = formData.shippingAmount || 0
+    const total = foodTotal + servicesTotal + cartTotal + shippingTotal
     
-    return { foodTotal, servicesTotal, cartTotal, subtotal, tax, total }
+    return { foodTotal, servicesTotal, cartTotal, shippingTotal, total }
+  }, [formData.selectedItems, formData.selectedServices, formData.cartServiceAmount, formData.shippingAmount])
+
+  const { foodTotal, servicesTotal, cartTotal, shippingTotal, total } = calculateTotals
+
+  // Show loading skeleton if data is still loading
+  if (creating) {
+    return <PaymentSkeleton />
   }
-
-  const { foodTotal, servicesTotal, cartTotal, subtotal, tax, total } = calculateBreakdown()
-
-  const filteredData = useMemo(() => {
-    if (selectedCategory === 'payment') {
-      return [
-        { id: 'cardNumber', label: 'Card Number', value: paymentInfo.cardNumber, field: 'cardNumber', type: 'text', icon: CreditCard, placeholder: '1234 5678 9012 3456' },
-        { id: 'cardholderName', label: 'Cardholder Name', value: paymentInfo.cardholderName, field: 'cardholderName', type: 'text', icon: CreditCard, placeholder: 'John Doe' },
-        { id: 'expiryDate', label: 'Expiry Date', value: paymentInfo.expiryDate, field: 'expiryDate', type: 'text', icon: Calendar, placeholder: 'MM/YY' },
-        { id: 'cvv', label: 'CVV', value: paymentInfo.cvv, field: 'cvv', type: 'text', icon: Shield, placeholder: '123' }
-      ]
-    } else {
-      return []
-    }
-  }, [selectedCategory, paymentInfo])
 
   return (
-    <div className="space-y-[3vh] lg:space-y-[1vw]">
+    <div className="space-y-[3vh] lg:space-y-[1.5vw]">
+      {/* Header */}
       <div className="text-center">
-        <h2 className="text-[3.5vh] lg:text-[1.4vw] font-bold text-white mb-[1vh] lg:mb-[0.3vw]">
-          Complete Payment
+        <h2 className="text-[3.5vh] lg:text-[1.8vw] font-bold text-white mb-[1vh] lg:mb-[0.5vw]">
+          {t('payment_title')}
         </h2>
-        <p className="text-gray-400 text-[2vh] lg:text-[0.7vw]">
-          Step 6 of 6
+        <p className="text-gray-400 text-[2vh] lg:text-[1vw]">
+          {t('payment_subtitle')}
         </p>
       </div>
 
-      {/* Category Filter Tabs */}
-      <div className="flex flex-wrap gap-[1.5vh] lg:gap-[0.5vw] justify-center px-[2vh] lg:px-[0.8vw]">
-        {categories.map((category) => (
-          <button
-            key={category}
-            onClick={() => setSelectedCategory(category as 'payment' | 'summary')}
-            className={clsx(
-              'px-[3vh] lg:px-[1vw] py-[1vh] lg:py-[0.3vw] rounded-full font-medium transition-all duration-300 text-[1.8vh] lg:text-[0.6vw] flex items-center space-x-[1vh] lg:space-x-[0.3vw]',
-              selectedCategory === category
-                ? 'bg-teal-500 text-white shadow-lg'
-                : 'bg-slate-600 text-gray-300 hover:bg-slate-500'
-            )}
-          >
-            {category === 'payment' ? (
-              <CreditCard className="w-[2vh] h-[2vh] lg:w-[0.8vw] lg:h-[0.8vw]" />
-            ) : (
-              <Receipt className="w-[2vh] h-[2vh] lg:w-[0.8vw] lg:h-[0.8vw]" />
-            )}
-            <span>{category === 'payment' ? 'Payment Details' : 'Order Summary'}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Payment/Summary Content */}
-      <div className="relative">
-        <div className="flex items-center justify-between px-[2vh] lg:px-[1vw] mb-[2vh] lg:mb-[0.8vw]">
-          <div className="flex items-center space-x-[1.5vh] lg:space-x-[0.5vw]">
-            <h3 className="text-[2.2vh] lg:text-[0.9vw] font-medium text-gray-300">
-              {selectedCategory === 'payment' ? 'Payment Information' : 'Booking Summary'}
-            </h3>
-          </div>
+      {/* Order Summary */}
+      <div className="max-w-[100vh] lg:max-w-[50vw] mx-auto">
+        <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl p-[3vh] lg:p-[1.5vw] mx-[2vh] lg:mx-[1vw] border border-slate-600/50">
+          {/* Summary Header */}
+          <div className="flex items-center space-x-[1.5vh] lg:space-x-[0.75vw] mb-[2.5vh] lg:mb-[1.25vw]">
+            <Receipt className="w-[2.5vh] h-[2.5vh] lg:w-[1.25vw] lg:h-[1.25vw] text-teal-400" />
+            <h3 className="text-[2.5vh] lg:text-[1.25vw] font-semibold text-white">{t('order_summary')}</h3>
         </div>
 
-        {selectedCategory === 'payment' ? (
-          /* Payment Section */
-          <div className="bg-slate-800/60 backdrop-blur-sm rounded-lg p-[2vh] lg:p-[1vw] mx-[2vh] lg:mx-[1vw]">
-            {/* Payment Method Selection */}
-            <div className="mb-[3vh] lg:mb-[1.5vw]">
-              <label className="block text-[1.4vh] lg:text-[0.7vw] font-medium text-gray-300 mb-[1vh] lg:mb-[0.5vw]">
-                Payment Method
-              </label>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-[1vh] lg:gap-[0.5vw]">
-                {paymentMethodOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => setPaymentMethod(option.value)}
-                    className={clsx(
-                      'p-[1.5vh] lg:p-[0.8vw] rounded-lg border text-left transition-all duration-300',
-                      paymentMethod === option.value
-                        ? 'border-green-500 bg-green-500/20 text-white'
-                        : 'border-slate-600 bg-slate-700 text-gray-300 hover:border-slate-500'
-                    )}
-                  >
+          {/* Order Details */}
+          <div className="space-y-[2vh] lg:space-y-[1vw]">
+            {/* Booking Details */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-[2vh] lg:gap-[1vw]">
+              <div className="space-y-[1.5vh] lg:space-y-[0.75vw]">
                     <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw]">
-                      {(() => {
-                        const IconComponent = option.icon
-                        return <IconComponent className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] text-teal-400" />
-                      })()}
-                      <div>
-                        <div className="text-[1.3vh] lg:text-[0.65vw] font-medium">{option.label}</div>
-                        <div className="text-[1.1vh] lg:text-[0.55vw] text-gray-400">{option.description}</div>
+                  <Calendar className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] text-teal-400" />
+                  <span className="text-[1.6vh] lg:text-[0.8vw] text-gray-300">
+                    {new Date(formData.bookingDate || '').toLocaleDateString()}
+                  </span>
                       </div>
+                <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw]">
+                  <Clock className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] text-teal-400" />
+                  <span className="text-[1.6vh] lg:text-[0.8vw] text-gray-300">
+                    {formData.startTime} - {formData.endTime} ({formData.totalHours}h)
+                  </span>
                     </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {paymentMethod === 'credit-card' && (
-              <div className="relative max-w-[160vh] lg:max-w-[80vw] mx-auto">
-                <div className="overflow-hidden">
-                  <Swiper
-                    ref={swiperRef}
-                    modules={[FreeMode, Mousewheel]}
-                    spaceBetween={16}
-                    slidesPerView="auto"
-                    centeredSlides={false}
-                    freeMode={{
-                      enabled: true,
-                      sticky: false,
-                      momentumRatio: 0.25,
-                      momentumVelocityRatio: 0.25
-                    }}
-                    mousewheel={{
-                      forceToAxis: true,
-                      sensitivity: 1
-                    }}
-                    grabCursor={true}
-                    watchOverflow={true}
-                    breakpoints={{
-                      640: { spaceBetween: 20 },
-                      1024: { spaceBetween: 24 },
-                    }}
-                    className="payment-swiper"
-                    style={{
-                      paddingLeft: '2vh',
-                      paddingRight: '2vh'
-                    }}
-                  >
-                    {filteredData.map((field) => (
-                      <SwiperSlide key={field.id} style={{ width: '26vh', minWidth: '26vh' }}>
-                        <div className={clsx(
-                          'relative cursor-pointer transition-all duration-300 rounded-lg overflow-hidden group flex-shrink-0',
-                          'bg-slate-800 border shadow-sm hover:shadow-md',
-                          field.value 
-                            ? 'border-green-500 ring-2 ring-green-500/20' 
-                            : 'border-slate-600 hover:border-slate-500'
-                        )}>
-                          {/* Selection Badge */}
-                          {field.value && (
-                            <div className="absolute top-[0.8vh] lg:top-[0.4vw] right-[0.8vh] lg:right-[0.4vw] z-10">
-                              <div className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] rounded-full bg-green-500 flex items-center justify-center">
-                                <CheckCircle className="w-[1.2vh] h-[1.2vh] lg:w-[0.6vw] lg:h-[0.6vw] text-white" />
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Field Icon Header */}
-                          <div className="relative h-[8vh] lg:h-[4vw] bg-slate-700 overflow-hidden flex items-center justify-center">
-                            {(() => {
-                              const IconComponent = field.icon
-                              return <IconComponent className="w-[3vh] h-[3vh] lg:w-[1.5vw] lg:h-[1.5vw] text-teal-400" />
-                            })()}
-                            {field.id === 'cvv' && (
-                              <div className="absolute top-[0.8vh] lg:top-[0.4vw] right-[0.8vh] lg:right-[0.4vw]">
-                                <Lock className="w-[1.5vh] h-[1.5vh] lg:w-[0.8vw] lg:h-[0.8vw] text-green-400" />
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Field Details */}
-                          <div className="p-[1.2vh] lg:p-[0.6vw] space-y-[0.8vh] lg:space-y-[0.4vw]">
-                            {/* Field Label */}
-                            <div>
-                              <h3 className="text-white font-semibold text-[1.4vh] lg:text-[0.7vw] leading-tight">
-                                {field.label}
-                              </h3>
-                            </div>
-
-                            {/* Input Field */}
-                            <Input
-                              type={field.type}
-                              value={field.value}
-                              onChange={(e) => handleInputChange(field.field, e.target.value)}
-                              error={errors[field.field]}
-                              required
-                              placeholder={field.placeholder}
-                              className="text-[1.2vh] lg:text-[0.6vw]"
-                            />
-
-                            {/* Status - Always present to maintain height */}
-                            <div className={`text-right font-medium text-[1.2vh] lg:text-[0.6vw] pt-[0.4vh] lg:pt-[0.2vw] min-h-[2vh] lg:min-h-[1vw] ${
-                              field.value 
-                                ? 'text-teal-400 border-t border-slate-700' 
-                                : 'text-transparent'
-                            }`}>
-                              {field.value ? 'Entered' : 'Required'}
-                            </div>
-                          </div>
-                        </div>
-                      </SwiperSlide>
-                    ))}
-                  </Swiper>
+                <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw]">
+                  <Users className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] text-teal-400" />
+                  <span className="text-[1.6vh] lg:text-[0.8vw] text-gray-300">
+                    {formData.guestCount} {t('guests')} • {(() => {
+                      const map: Record<string, string> = {
+                        'birthday': t('event_birthday'),
+                        'wedding': t('event_wedding'),
+                        'corporate': t('event_corporate'),
+                        'graduation': t('event_graduation'),
+                        'anniversary': t('event_anniversary'),
+                        'family-gathering': t('event_family_gathering'),
+                        'community-event': t('event_community_event'),
+                        'other': t('event_other'),
+                      }
+                      return map[formData.eventType || ''] || (formData.eventType || '')
+                    })()}
+                  </span>
                 </div>
               </div>
-            )}
-
-            {paymentMethod === 'paypal' && (
-              <div className="text-center py-[4vh] lg:py-[2vw] bg-blue-600/20 rounded-lg">
-                <Wallet className="w-[6vh] h-[6vh] lg:w-[3vw] lg:h-[3vw] text-blue-400 mx-auto mb-[2vh] lg:mb-[1vw]" />
-                <div className="text-blue-400 font-semibold text-[2vh] lg:text-[1vw]">PayPal Payment</div>
-                <p className="text-gray-400 text-[1.4vh] lg:text-[0.7vw] mt-[1vh] lg:mt-[0.5vw]">You will be redirected to PayPal to complete payment</p>
+              
+              <div className="space-y-[1.5vh] lg:space-y-[0.75vw]">
+                <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw]">
+                  <CheckCircle className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] text-teal-400" />
+                  <span className="text-[1.6vh] lg:text-[0.8vw] text-gray-300">
+                    {formData.customerFirstName} {formData.customerLastName}
+                  </span>
               </div>
-            )}
-
-            {paymentMethod === 'cash' && (
-              <div className="text-center py-[4vh] lg:py-[2vw] bg-green-600/20 rounded-lg">
-                <DollarSign className="w-[6vh] h-[6vh] lg:w-[3vw] lg:h-[3vw] text-green-400 mx-auto mb-[2vh] lg:mb-[1vw]" />
-                <div className="text-green-400 font-semibold text-[2vh] lg:text-[1vw]">Cash on Delivery</div>
-                <p className="text-gray-400 text-[1.4vh] lg:text-[0.7vw] mt-[1vh] lg:mt-[0.5vw]">Pay when our cart arrives at your location</p>
-              </div>
-            )}
-          </div>
-        ) : (
-          /* Order Summary Section */
-          <div className="bg-slate-800/60 backdrop-blur-sm rounded-lg p-[2vh] lg:p-[1vw] mx-[2vh] lg:mx-[1vw]">
-            <div className="grid md:grid-cols-2 gap-[3vh] lg:gap-[1.5vw]">
-              {/* Event & Contact Details */}
-              <div className="space-y-[2vh] lg:space-y-[1vw]">
-                <div>
-                  <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw] mb-[1vh] lg:mb-[0.5vw]">
-                    <Calendar className="w-[1.5vh] h-[1.5vh] lg:w-[0.8vw] lg:h-[0.8vw] text-teal-400" />
-                    <h4 className="text-[1.4vh] lg:text-[0.7vw] font-semibold text-white">Event Details</h4>
-                  </div>
-                  <div className="space-y-[0.5vh] lg:space-y-[0.3vw] text-[1.2vh] lg:text-[0.6vw] text-gray-300 pl-[2.5vh] lg:pl-[1.3vw]">
-                    <p>Date: {formData.bookingDate ? new Date(formData.bookingDate).toLocaleDateString() : 'Not selected'}</p>
-                    <p>Time: {formData.startTime} - {formData.endTime}</p>
-                    <p>Duration: {formData.totalHours} hours</p>
-                    <p>Event: {formData.eventType}</p>
-                  </div>
-                </div>
-                
-                <div>
-                  <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw] mb-[1vh] lg:mb-[0.5vw]">
-                    <Users className="w-[1.5vh] h-[1.5vh] lg:w-[0.8vw] lg:h-[0.8vw] text-teal-400" />
-                    <h4 className="text-[1.4vh] lg:text-[0.7vw] font-semibold text-white">Contact Information</h4>
-                  </div>
-                  <div className="space-y-[0.5vh] lg:space-y-[0.3vw] text-[1.2vh] lg:text-[0.6vw] text-gray-300 pl-[2.5vh] lg:pl-[1.3vw]">
-                    <p>{formData.customerName}</p>
-                    <p>{formData.customerEmail}</p>
-                    <p>{formData.customerPhone}</p>
-                    <p>Guests: {formData.guestCount}</p>
+                <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw]">
+                  {formData.deliveryMethod === 'shipping' ? (
+                    <Truck className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] text-teal-400" />
+                  ) : (
+                    <MapPin className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] text-teal-400" />
+                  )}
+                  <span className="text-[1.6vh] lg:text-[0.8vw] text-gray-300">
+                    {formData.deliveryMethod === 'shipping' ? t('shipping_option') : t('pickup_option')}
+                    {formData.deliveryMethod === 'shipping' && ` - $${shippingTotal.toFixed(2)}`}
+                  </span>
                   </div>
                 </div>
               </div>
 
               {/* Price Breakdown */}
-              <div>
-                <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw] mb-[2vh] lg:mb-[1vw]">
-                  <Receipt className="w-[1.5vh] h-[1.5vh] lg:w-[0.8vw] lg:h-[0.8vw] text-teal-400" />
-                  <h4 className="text-[1.4vh] lg:text-[0.7vw] font-semibold text-white">Price Breakdown</h4>
+            <div className="border-t border-slate-600 pt-[2vh] lg:pt-[1vw] mt-[2vh] lg:mt-[1vw]">
+              <div className="space-y-[1vh] lg:space-y-[0.5vw]">
+                {cartTotal > 0 && (
+                  <div className="flex justify-between text-[1.6vh] lg:text-[0.8vw] text-gray-300">
+                    <span>{t('food_cart_service')}</span>
+                    <span>€{cartTotal.toFixed(2)}</span>
                 </div>
-                <div className="space-y-[1vh] lg:space-y-[0.5vw]">
-                  <div className="flex justify-between text-[1.2vh] lg:text-[0.6vw] text-gray-300">
-                    <span>Food & Beverages</span>
-                    <span>${foodTotal.toFixed(2)}</span>
+                )}
+                {foodTotal > 0 && (
+                  <div className="flex justify-between text-[1.6vh] lg:text-[0.8vw] text-gray-300">
+                    <span>{t('food_items_with_count').replace('{count}', (formData.selectedItems?.length || 0).toString())}</span>
+                    <span>€{foodTotal.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-[1.2vh] lg:text-[0.6vw] text-gray-300">
-                    <span>Additional Services</span>
-                    <span>${servicesTotal.toFixed(2)}</span>
+                )}
+                {servicesTotal > 0 && (
+                  <div className="flex justify-between text-[1.6vh] lg:text-[0.8vw] text-gray-300">
+                    <span>{t('additional_services_with_count').replace('{count}', (formData.selectedServices?.length || 0).toString())}</span>
+                    <span>€{servicesTotal.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-[1.2vh] lg:text-[0.6vw] text-gray-300">
-                    <span>Cart Service ({formData.totalHours}h)</span>
-                    <span>${cartTotal.toFixed(2)}</span>
+                )}
+                {shippingTotal > 0 && (
+                  <div className="flex justify-between text-[1.6vh] lg:text-[0.8vw] text-gray-300">
+                    <span>{t('delivery_fee')}</span>
+                    <span>€{shippingTotal.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-[1.2vh] lg:text-[0.6vw] text-gray-300 pt-[1vh] lg:pt-[0.5vw] border-t border-slate-600">
-                    <span>Subtotal</span>
-                    <span>${subtotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-[1.2vh] lg:text-[0.6vw] text-gray-300">
-                    <span>Tax (8%)</span>
-                    <span>${tax.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-[1.6vh] lg:text-[0.8vw] font-bold text-white pt-[1vh] lg:pt-[0.5vw] border-t border-slate-600">
-                    <span>Total</span>
-                    <span className="text-teal-400">${total.toFixed(2)}</span>
-                  </div>
+                )}
+                <div className="flex justify-between text-[2.2vh] lg:text-[1.1vw] font-bold text-white pt-[1vh] lg:pt-[0.5vw] border-t border-slate-600">
+                    <span>{t('total')}</span>
+                  <span>€{total.toFixed(2)}</span>
                 </div>
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* PayPal Payment Section */}
+      <div className="max-w-[100vh] lg:max-w-[50vw] mx-auto">
+        <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl p-[3vh] lg:p-[1.5vw] mx-[2vh] lg:mx-[1vw] border border-slate-600/50">
+          {/* Payment Header */}
+          <div className="flex items-center space-x-[1.5vh] lg:space-x-[0.75vw] mb-[3vh] lg:mb-[1.5vw]">
+            <Shield className="w-[2.5vh] h-[2.5vh] lg:w-[1.25vw] lg:h-[1.25vw] text-teal-400" />
+            <div>
+                      <h3 className="text-[2.5vh] lg:text-[1.25vw] font-semibold text-white">{t('secure_payment')}</h3>
+        <p className="text-[1.4vh] lg:text-[0.7vw] text-gray-400">{t('protected_by_paypal')}</p>
+            </div>
+          </div>
+
+          {/* PayPal Payment Button */}
+          <div className="text-center space-y-[2vh] lg:space-y-[1vw]">
+            {/* PayPal Info */}
+            <div className="bg-blue-600/10 border border-blue-600/30 rounded-lg p-[2vh] lg:p-[1vw]">
+              <div className="flex items-center justify-center space-x-[1vh] lg:space-x-[0.5vw] mb-[1vh] lg:mb-[0.5vw]">
+                <svg className="w-[3vh] h-[3vh] lg:w-[1.5vw] lg:h-[1.5vw]" viewBox="0 0 24 24" fill="currentColor">
+                  <path fill="#0070ba" d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106zm14.146-14.42a3.35 3.35 0 0 0-.198-.398c2.306.686 3.82 2.799 3.82 6.068 0 6.749-5.451 12.22-12.2 12.22H9.98a.641.641 0 0 1-.633-.74l.905-5.751h1.848c4.298 0 7.664-1.747 8.647-6.797.03-.149.054-.294.077-.437a7.649 7.649 0 0 0-.402-4.165z"/>
+                </svg>
+                <span className="text-[1.8vh] lg:text-[0.9vw] font-medium text-blue-400">{t('paypal_secure_payment')}</span>
+              </div>
+              <p className="text-[1.4vh] lg:text-[0.7vw] text-gray-300">
+                {t('click_below_to_process_payment')}
+              </p>
+            </div>
+
+            {/* Total Display */}
+            <div className="bg-slate-700/50 rounded-lg p-[2vh] lg:p-[1vw] border border-slate-600">
+              <div className="text-[2vh] lg:text-[1vw] text-gray-300 mb-[0.5vh] lg:mb-[0.25vw]">{t('total_amount')}</div>
+              <div className="text-[3.5vh] lg:text-[1.75vw] font-bold text-white">€{total.toFixed(2)}</div>
+            </div>
+
+            {/* Payment Buttons */}
+            <div className="w-full">
+              {isProcessing ? (
+                <div className="bg-gray-600 rounded-lg py-[2vh] lg:py-[1vw] flex items-center justify-center space-x-[1vh] lg:space-x-[0.5vw]">
+                  <div className="animate-spin rounded-full h-[2vh] w-[2vh] lg:h-[1vw] lg:w-[1vw] border-2 border-white border-t-transparent"></div>
+                  <span className="text-white text-[2.2vh] lg:text-[1.1vw] font-bold">{t('processing_payment')}</span>
+                </div>
+              ) : hasPayPalCredentials ? (
+                <PayPalScriptProvider options={paypalOptions}>
+                  <PayPalButtons
+                    style={{
+                      layout: 'vertical',
+                      color: 'blue',
+                      shape: 'rect',
+                      label: 'paypal',
+                      height: 50
+                    }}
+                    fundingSource={undefined}
+                    // Disable Pay Later and other funding sources; keep PayPal and card
+                    // Note: The PayPal JS SDK honors disableFunding via script options; we pass clientId only,
+                    // so we enforce via allowed funding by not specifying paylater.
+                    // The buttons will show PayPal and Card (if eligible) by default.
+                    createOrder={createOrder}
+                    onApprove={onApprove}
+                    onError={onError}
+                    onCancel={onCancel}
+                    disabled={isProcessing}
+                  />
+                </PayPalScriptProvider>
+              ) : (
+                <div className="space-y-[1vh] lg:space-y-[0.5vw]">
+                  <div className="bg-yellow-600/20 border border-yellow-600/50 rounded-lg p-[1.5vh] lg:p-[0.8vw] mb-[1vh] lg:mb-[0.5vw]">
+                    <p className="text-yellow-300 text-[1.4vh] lg:text-[0.7vw] text-center">
+                      {t('paypal_credentials_missing')}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleSimulationPayment}
+                    disabled={isProcessing}
+                    size="lg"
+                    className="w-full py-[2vh] lg:py-[1vw] text-[2.2vh] lg:text-[1.1vw] font-bold bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <div className="flex items-center justify-center space-x-[1vh] lg:space-x-[0.5vw]">
+                      <DollarSign className="w-[2.2vh] h-[2.2vh] lg:w-[1.1vw] lg:h-[1.1vw]" />
+                      <span>{t('simulate_payment_with_amount').replace('${amount}', `$${total.toFixed(2)}`)}</span>
+                    </div>
+                  </Button>
+          </div>
         )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Navigation */}
-      <div className="text-center space-y-[1.5vh] lg:space-y-[0.8vw] pt-[2vh] lg:pt-[0vw] max-w-[160vh] lg:max-w-[80vw] mx-auto px-[2vh] lg:px-[0.8vw]">
-        <div className="flex justify-between">
+      <div className="flex justify-between gap-[1vh] lg:gap-[0.5vw] max-w-[100vh] lg:max-w-[50vw] mx-auto px-[2vh] lg:px-[1vw]">
           <Button
             variant="outline"
             onClick={onPrevious}
             size="md"
-            className="px-[4vh] lg:px-[2vw] py-[1.2vh] lg:py-[0.6vw] text-[1.8vh] lg:text-[0.9vw] font-semibold"
+            className="px-[3vh] lg:px-[2vw] py-[1vh] lg:py-[0.6vw] text-[1.6vh] lg:text-[0.9vw] font-semibold"
           >
-            Previous
+            {t('previous')}
           </Button>
-          <Button
-            onClick={handlePayment}
-            disabled={processing}
-            size="md"
-            className="px-[4vh] lg:px-[2vw] py-[1.2vh] lg:py-[0.6vw] text-[1.8vh] lg:text-[0.9vw] font-semibold"
-          >
-            {processing ? (
-              <div className="flex items-center">
-                <div className="animate-spin rounded-full h-[1.5vh] w-[1.5vh] lg:h-[0.8vw] lg:w-[0.8vw] border-2 border-white border-t-transparent mr-[1vh] lg:mr-[0.5vw]"></div>
-                Processing...
-              </div>
-            ) : (
-              <div className="flex items-center">
-                <CheckCircle className="w-[1.8vh] h-[1.8vh] lg:w-[0.9vw] lg:h-[0.9vw] mr-[0.8vh] lg:mr-[0.4vw]" />
-                Complete Payment (${total.toFixed(2)})
-              </div>
-            )}
-          </Button>
+        
+        <div className="text-center">
+          <p className="text-[1.4vh] lg:text-[0.7vw] text-gray-400">
+            {t('payment_protected_by_paypal')}
+          </p>
         </div>
       </div>
     </div>

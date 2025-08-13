@@ -14,8 +14,24 @@ interface ServiceSelectionStepProps {
   onPrevious: () => void
 }
 
+interface SelectedService {
+  serviceId: string
+  quantity: number
+  price: number
+  hours: number
+  pricePerHour: number
+}
+
 export default function ServiceSelectionStep({ formData, updateFormData, onNext, onPrevious }: ServiceSelectionStepProps) {
-  const [selectedServices, setSelectedServices] = useState(formData.selectedServices || [])
+  const [selectedServices, setSelectedServices] = useState<SelectedService[]>(
+    (formData.selectedServices || []).map(service => ({
+      serviceId: service.serviceId,
+      quantity: service.quantity,
+      price: service.price,
+      hours: service.hours || 1,
+      pricePerHour: service.pricePerHour || 0
+    }))
+  )
 
   // Use RTK Query to fetch cart data with services
   const {
@@ -28,15 +44,22 @@ export default function ServiceSelectionStep({ formData, updateFormData, onNext,
 
   const services = cartData?.services || []
 
-  const getServiceSelection = (serviceId: string) => {
-    return selectedServices.find(item => item.serviceId === serviceId) || { quantity: 0, hours: 1 }
+  const getServiceSelection = (serviceId: string): SelectedService => {
+    return selectedServices.find(item => item.serviceId === serviceId) || { 
+      serviceId, 
+      quantity: 0, 
+      hours: 1, 
+      price: 0, 
+      pricePerHour: 0 
+    }
   }
 
   const updateServiceSelection = (serviceId: string, quantity: number, hours: number, pricePerHour: number) => {
     setSelectedServices(prev => {
       const filtered = prev.filter(item => item.serviceId !== serviceId)
       if (quantity > 0) {
-        filtered.push({ serviceId, quantity, hours, pricePerHour })
+        const totalPrice = quantity * hours * pricePerHour
+        filtered.push({ serviceId, quantity, price: totalPrice, hours, pricePerHour })
       }
       return filtered
     })
@@ -44,7 +67,7 @@ export default function ServiceSelectionStep({ formData, updateFormData, onNext,
 
   const calculateServiceTotal = () => {
     return selectedServices.reduce((total, service) => {
-      return total + (service.quantity * service.hours * service.pricePerHour)
+      return total + service.price
     }, 0)
   }
 
@@ -193,8 +216,8 @@ export default function ServiceSelectionStep({ formData, updateFormData, onNext,
                   {selection.quantity > 0 && (
                     <div className="bg-teal-500/20 border border-teal-500/50 p-4">
                       <div className="flex justify-between text-sm text-gray-300">
-                        <span>{selection.quantity} × {selection.hours} hours × ${service.pricePerHour}</span>
-                        <span className="font-bold text-teal-400">${subtotal}</span>
+                        <span>{selection.quantity} × {selection.hours} hours × €{service.pricePerHour}</span>
+                        <span className="font-bold text-teal-400">€{subtotal}</span>
                       </div>
                     </div>
                   )}
@@ -218,7 +241,7 @@ export default function ServiceSelectionStep({ formData, updateFormData, onNext,
                     {serviceData?.name} × {service.quantity} × {service.hours}h
                   </span>
                   <span className="font-medium text-white">
-                    ${service.quantity * service.hours * service.pricePerHour}
+                    €{service.price}
                   </span>
                 </div>
               )
@@ -226,7 +249,7 @@ export default function ServiceSelectionStep({ formData, updateFormData, onNext,
             <div className="border-t border-teal-500/30 pt-2 mt-2">
               <div className="flex justify-between font-bold text-lg">
                 <span className="text-white">Services Total:</span>
-                <span className="text-teal-400">${calculateServiceTotal()}</span>
+                <span className="text-teal-400">€{calculateServiceTotal()}</span>
               </div>
             </div>
           </div>

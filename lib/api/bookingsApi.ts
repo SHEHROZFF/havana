@@ -72,16 +72,25 @@ export const bookingsApi = apiSlice.injectEndpoints({
       ],
     }),
 
-    // Check availability for a cart on a specific date
+    // Check availability for a cart on a specific date and time
     getAvailability: builder.query<{
       bookedSlots: Array<{
         startTime: string
         endTime: string
         id: string
+        bookingDate?: string
       }>
-      availableSlots: string[]
-    }, { cartId: string; date: string }>({
-      query: ({ cartId, date }) => `/availability?cartId=${cartId}&date=${date}`,
+      availableSlots?: string[]
+      isAvailable?: boolean
+      conflictingBooking?: any
+    }, { cartId: string; date: string; startTime?: string; endTime?: string }>({
+      query: ({ cartId, date, startTime, endTime }) => {
+        let url = `/availability?cartId=${cartId}&date=${date}`
+        if (startTime && endTime) {
+          url += `&startTime=${startTime}&endTime=${endTime}`
+        }
+        return url
+      },
       providesTags: ['Booking'],
     }),
 

@@ -93,7 +93,7 @@ export async function GET() {
       todayBookings: todayBookings,
       recentBookings: recentBookings.map((booking: any) => ({
         id: booking.id,
-        customerName: booking.customerName,
+        customerName: `${booking.customerFirstName || ''} ${booking.customerLastName || ''}`.trim() || 'Unknown',
         eventDate: booking.bookingDate?.toISOString().split('T')[0] || '',
         totalAmount: booking.totalAmount,
         status: booking.status,

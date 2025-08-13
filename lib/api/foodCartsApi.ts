@@ -21,6 +21,10 @@ export const foodCartsApi = apiSlice.injectEndpoints({
       description: string
       cuisine: string
       pricePerHour: number
+      extraHourPrice?: number
+      shippingPrice?: number
+      pickupAvailable?: boolean
+      shippingAvailable?: boolean
       image?: string
       capacity: number
       features: string[]
@@ -40,6 +44,10 @@ export const foodCartsApi = apiSlice.injectEndpoints({
       description?: string
       cuisine?: string
       pricePerHour?: number
+      extraHourPrice?: number
+      shippingPrice?: number
+      pickupAvailable?: boolean
+      shippingAvailable?: boolean
       image?: string
       capacity?: number
       features?: string[]

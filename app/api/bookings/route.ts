@@ -31,7 +31,13 @@ export async function GET(request: NextRequest) {
     if (search) {
       where.OR = [
         {
-          customerName: {
+          customerFirstName: {
+            contains: search,
+            mode: 'insensitive'
+          }
+        },
+        {
+          customerLastName: {
             contains: search,
             mode: 'insensitive'
           }
@@ -101,9 +107,15 @@ export async function GET(request: NextRequest) {
     // Transform bookings to match expected format
     const transformedBookings = bookings.map((booking: any) => ({
       id: booking.id,
-      customerName: booking.customerName,
+      customerFirstName: booking.customerFirstName,
+      customerLastName: booking.customerLastName,
       customerEmail: booking.customerEmail,
       customerPhone: booking.customerPhone,
+      customerAddress: booking.customerAddress,
+      customerCity: booking.customerCity,
+      customerState: booking.customerState,
+      customerZip: booking.customerZip,
+      customerCountry: booking.customerCountry,
       eventType: booking.eventType,
       eventDate: booking.bookingDate?.toISOString().split('T')[0] || '',
       startTime: booking.startTime,
@@ -153,9 +165,15 @@ export async function POST(request: NextRequest) {
       foodAmount,
       isCustomTiming,
       timeSlotType,
-      customerName,
+      customerFirstName,
+      customerLastName,
       customerEmail,
       customerPhone,
+      customerAddress,
+      customerCity,
+      customerState,
+      customerZip,
+      customerCountry,
       eventType,
       guestCount,
       specialNotes,
@@ -174,9 +192,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!customerName || !customerEmail || !customerPhone) {
+    if (!customerFirstName || !customerLastName || !customerEmail || !customerPhone || !customerAddress || !customerCity || !customerState || !customerZip || !customerCountry) {
       return NextResponse.json(
-        { error: 'Customer information is required' },
+        { error: 'All customer information fields are required' },
         { status: 400 }
       )
     }
@@ -262,9 +280,15 @@ export async function POST(request: NextRequest) {
           foodAmount: foodAmount || 0,
           isCustomTiming: isCustomTiming ?? true,
           timeSlotType,
-          customerName,
+          customerFirstName,
+          customerLastName,
           customerEmail,
           customerPhone,
+          customerAddress,
+          customerCity,
+          customerState,
+          customerZip,
+          customerCountry,
           eventType,
           guestCount,
           specialNotes,
@@ -293,9 +317,9 @@ export async function POST(request: NextRequest) {
             bookingId: newBooking.id,
             serviceId: service.serviceId,
             quantity: service.quantity,
-            hours: service.hours,
-            pricePerHour: service.pricePerHour,
-            totalPrice: service.quantity * service.hours * service.pricePerHour
+            hours: 1, // Default to 1 hour since we're not using hour-based pricing
+            pricePerHour: service.price, // Store the service price
+            totalPrice: service.quantity * service.price
           }))
         })
       }

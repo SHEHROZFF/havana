@@ -1,17 +1,13 @@
 'use client'
 
-import { useState, useMemo, useRef, useEffect } from 'react'
-import { BookingFormData, TimeSlot } from '@/types/booking'
+import { useState } from 'react'
+import { BookingFormData } from '@/types/booking'
 import Button from '@/components/ui/Button'
-import Input from '@/components/ui/Input'
-import { clsx } from 'clsx'
 import { useGetAvailabilityQuery } from '../../../lib/api/bookingsApi'
 import { useGetFoodCartByIdQuery } from '../../../lib/api/foodCartsApi'
-import { Target, AlertTriangle, Clock, Calendar, Check, Sunrise, Sun, Moon, Star } from 'lucide-react'
-import { Swiper, SwiperSlide } from 'swiper/react'
-import { FreeMode, Mousewheel } from 'swiper/modules'
-import 'swiper/css'
-import 'swiper/css/free-mode'
+import { AlertTriangle, Clock, Calendar, Check, ChevronLeft, ChevronRight } from 'lucide-react'
+import TimingSkeleton from '@/components/ui/skeletons/TimingSkeleton'
+import { useI18n } from '@/lib/i18n/context'
 
 interface DynamicTimingStepProps {
   formData: Partial<BookingFormData>
@@ -21,14 +17,14 @@ interface DynamicTimingStepProps {
 }
 
 export default function DynamicTimingStep({ formData, updateFormData, onNext, onPrevious }: DynamicTimingStepProps) {
+  const { t, language } = useI18n()
   const [selectedDate, setSelectedDate] = useState(formData.bookingDate || '')
   const [selectedStartTime, setSelectedStartTime] = useState(formData.startTime || '')
   const [selectedEndTime, setSelectedEndTime] = useState(formData.endTime || '')
-  const [selectedPresetSlot, setSelectedPresetSlot] = useState(formData.timeSlotType || '')
-  const [selectedCategory, setSelectedCategory] = useState<'preset' | 'custom'>('preset')
-  const swiperRef = useRef<any>(null)
+  const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [calendarView, setCalendarView] = useState(new Date())
 
-  // Use RTK Query to check availability
+  // Use RTK Query to check availability - only when time is selected
   const {
     data: availabilityData,
     isLoading: loading,
@@ -36,14 +32,16 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
   } = useGetAvailabilityQuery(
     { 
       cartId: formData.selectedCartId!, 
-      date: selectedDate 
+      date: selectedDate,
+      startTime: selectedStartTime,
+      endTime: selectedEndTime
     },
     { 
-      skip: !formData.selectedCartId || !selectedDate 
+      skip: !formData.selectedCartId || !selectedDate || !selectedStartTime || !selectedEndTime
     }
   )
 
-  // Fetch cart data to get pricePerHour
+  // Fetch cart data for pricing
   const {
     data: cartData,
     isLoading: cartLoading
@@ -51,406 +49,383 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
     skip: !formData.selectedCartId
   })
 
-  const conflicts = availabilityData?.bookedSlots?.map(slot => `${slot.startTime}-${slot.endTime}`) || []
-
-  // Reset swiper position when category changes
-  useEffect(() => {
-    if (swiperRef.current && swiperRef.current.swiper) {
-      setTimeout(() => {
-        if (swiperRef.current && swiperRef.current.swiper) {
-          swiperRef.current.swiper.slideTo(0, 500)
-        }
-      }, 100)
-    }
-  }, [selectedCategory])
-
-  // Preset time slots for quick selection (with dynamic pricing)
-  const presetSlots = useMemo(() => {
-    const cartPricePerHour = cartData?.pricePerHour || 150
-    return [
-      { id: 'morning', name: 'Morning Event', startTime: '09:00', endTime: '13:00', hours: 4, price: cartPricePerHour * 4, description: 'Perfect for brunch events', icon: Sunrise },
-      { id: 'afternoon', name: 'Afternoon Event', startTime: '14:00', endTime: '18:00', hours: 4, price: cartPricePerHour * 4, description: 'Ideal for lunch gatherings', icon: Sun },
-      { id: 'evening', name: 'Evening Event', startTime: '19:00', endTime: '23:00', hours: 4, price: cartPricePerHour * 4, description: 'Great for dinner parties', icon: Moon },
-      { id: 'full-day', name: 'Full Day Event', startTime: '10:00', endTime: '22:00', hours: 12, price: cartPricePerHour * 12, description: 'Complete event coverage', icon: Star },
-    ]
-  }, [cartData?.pricePerHour])
-
-  const categories = ['preset', 'custom']
-  
-  const filteredSlots = useMemo(() => {
-    return selectedCategory === 'preset' ? presetSlots : []
-  }, [selectedCategory])
-
+  // Calculate total hours between start and end time
   const calculateTotalHours = (start: string, end: string) => {
-    if (!start || !end) return 0
-    const startHour = parseInt(start.split(':')[0]) + (parseInt(start.split(':')[1]) / 60)
-    const endHour = parseInt(end.split(':')[0]) + (parseInt(end.split(':')[1]) / 60)
-    return Math.max(0, endHour - startHour)
-  }
-
-  const generateTimeOptions = () => {
-    const options = []
-    for (let hour = 6; hour <= 23; hour++) {
-      for (let minute = 0; minute < 60; minute += 30) {
-        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
-        options.push(timeString)
-      }
+    const startTime = new Date(`2023-01-01T${start}:00`)
+    const endTime = new Date(`2023-01-01T${end}:00`)
+    
+    if (endTime <= startTime) {
+      endTime.setDate(endTime.getDate() + 1)
     }
-    return options
-  }
-
-  const timeOptions = generateTimeOptions()
-
-  const handlePresetSlotSelect = (slot: typeof presetSlots[0]) => {
-    setSelectedPresetSlot(slot.id)
-    setSelectedStartTime(slot.startTime)
-    setSelectedEndTime(slot.endTime)
-    setSelectedCategory('preset')
     
-    // Calculate cart cost for preset slots
-    const cartPricePerHour = cartData?.pricePerHour || 150
-    const cartServiceAmount = slot.hours * cartPricePerHour
-    
-    updateFormData({
-      startTime: slot.startTime,
-      endTime: slot.endTime,
-      timeSlotType: slot.id,
-      totalHours: slot.hours,
-      cartServiceAmount
-    })
+    return Math.ceil((endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60))
   }
 
-  const handleCustomTimeChange = () => {
-    setSelectedCategory('custom')
-    setSelectedPresetSlot('')
+  // Calculate cart cost with tiered pricing
+  const calculateCartCost = (hours: number) => {
+    if (!cartData) return 0
+    
+    const basePrice = cartData.pricePerHour || 150 // Base price for up to 4 hours
+    const extraHourPrice = cartData.extraHourPrice || 0 // Extra hour price
+    
+    if (hours <= 4) {
+      return basePrice
+    } else {
+      const extraHours = hours - 4
+      return basePrice + (extraHours * extraHourPrice)
+    }
   }
 
-  // Check for conflicts with selected time
-  const hasConflicts = () => {
-    if (!selectedStartTime || !selectedEndTime || !availabilityData?.bookedSlots) return false
-    
-    return availabilityData.bookedSlots.some((booking) => {
-      const bookingStart = booking.startTime
-      const bookingEnd = booking.endTime
-      const selectedStart = selectedStartTime
-      const selectedEnd = selectedEndTime
-      
-      // Check for time overlap
-      return (
-        (bookingStart <= selectedStart && bookingEnd > selectedStart) ||
-        (bookingStart < selectedEnd && bookingEnd >= selectedEnd) ||
-        (bookingStart >= selectedStart && bookingEnd <= selectedEnd)
-      )
-    })
+  // Check for booking conflicts using the API response
+  const hasConflict = availabilityData?.isAvailable === false
+  const conflictingBooking = availabilityData?.conflictingBooking
+  const conflicts = hasConflict && conflictingBooking ? [conflictingBooking] : []
+
+  // Calendar helper functions
+  const getDaysInMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
   }
+
+  const getFirstDayOfMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
+  }
+
+  const formatDateString = (year: number, month: number, day: number) => {
+    return `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+  }
+
+  const isDateDisabled = (dateStr: string) => {
+    const today = new Date()
+    const selectedDateObj = new Date(dateStr)
+    today.setHours(0, 0, 0, 0)
+    selectedDateObj.setHours(0, 0, 0, 0)
+    return selectedDateObj < today
+  }
+
+  const totalHours = selectedStartTime && selectedEndTime ? calculateTotalHours(selectedStartTime, selectedEndTime) : 0
+  const cartCost = calculateCartCost(totalHours)
 
   const handleNext = () => {
     if (selectedDate && selectedStartTime && selectedEndTime && conflicts.length === 0) {
-      const totalHours = calculateTotalHours(selectedStartTime, selectedEndTime)
-      const cartPricePerHour = cartData?.pricePerHour || 150 // fallback rate
-      const cartServiceAmount = totalHours * cartPricePerHour
-      
       updateFormData({
         bookingDate: selectedDate,
         startTime: selectedStartTime,
         endTime: selectedEndTime,
-        totalHours,
-        cartServiceAmount, // Calculate cart cost based on hours
-        isCustomTiming: selectedCategory === 'custom',
-        timeSlotType: selectedPresetSlot || undefined
+        totalHours: totalHours,
+        cartServiceAmount: cartCost,
+        isCustomTiming: true,
+        timeSlotType: undefined
       })
       onNext()
     }
   }
 
-  const today = new Date().toISOString().split('T')[0]
-  const isFormValid = selectedDate && selectedStartTime && selectedEndTime && conflicts.length === 0
-  const totalHours = calculateTotalHours(selectedStartTime, selectedEndTime)
-  const currentCartRate = cartData?.pricePerHour || 150 // Use actual cart pricing
+  // Generate time options (24-hour format)
+  const timeOptions = []
+  for (let hour = 0; hour < 24; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+      timeOptions.push(timeString)
+    }
+  }
 
-  return (
-    <div className="space-y-[3vh] lg:space-y-[1vw]">
-      <div className="text-center">
-        <h2 className="text-[3.5vh] lg:text-[1.4vw] font-bold text-white mb-[1vh] lg:mb-[0.3vw]">
-          Choose Your Date & Time
-        </h2>
-        <p className="text-gray-400 text-[2vh] lg:text-[0.7vw]">
-          Step 4 of 5
-        </p>
-      </div>
+  const isFormValid = selectedDate && selectedStartTime && selectedEndTime && conflicts.length === 0 && totalHours > 0
 
-      {/* Date Selection */}
-      <div className="bg-slate-800/60 backdrop-blur-sm rounded-lg p-[2vh] lg:p-[1vw] mx-[2vh] lg:mx-[1vw]">
-        <div className="date-input-wrapper">
-          <Input
-            type="date"
-            label="Event Date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            min={today}
-            required
-            className="text-[1.6vh] lg:text-[0.8vw]"
-          />
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    const newDate = new Date(calendarView)
+    if (direction === 'prev') {
+      newDate.setMonth(newDate.getMonth() - 1)
+    } else {
+      newDate.setMonth(newDate.getMonth() + 1)
+    }
+    setCalendarView(newDate)
+  }
+
+  // Locale helpers for month and weekday names
+  const locale = language === 'el' ? 'el-GR' : 'en-US'
+  const monthFormatter = new Intl.DateTimeFormat(locale, { month: 'long' })
+  const weekdayFormatter = new Intl.DateTimeFormat(locale, { weekday: 'short' })
+  const weekdayHeaders = Array.from({ length: 7 }, (_, i) => {
+    const baseSunday = new Date(Date.UTC(2021, 7, 1 + i)) // 2021-08-01 is a Sunday
+    return weekdayFormatter.format(baseSunday)
+  })
+
+  const renderCalendar = () => {
+    const year = calendarView.getFullYear()
+    const month = calendarView.getMonth()
+    const daysInMonth = getDaysInMonth(calendarView)
+    const firstDay = getFirstDayOfMonth(calendarView)
+    
+    const days = []
+    
+    // Empty cells for days before the first day of the month
+    for (let i = 0; i < firstDay; i++) {
+      days.push(
+        <div key={`empty-${i}`} className="h-[3.5vh] lg:h-[1.8vw]"></div>
+      )
+    }
+    
+    // Days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = formatDateString(year, month, day)
+      const isDisabled = isDateDisabled(dateStr)
+      const isSelected = selectedDate === dateStr
+      const isToday = new Date().toDateString() === new Date(dateStr).toDateString()
+      
+      days.push(
+        <button
+          key={day}
+          onClick={() => !isDisabled && setSelectedDate(dateStr)}
+          disabled={isDisabled}
+          className={`
+            h-[3.5vh] lg:h-[1.8vw] rounded-lg text-[1.2vh] lg:text-[0.6vw] font-medium transition-all duration-200
+            ${isSelected 
+              ? 'bg-teal-500 text-white shadow-lg' 
+              : isToday
+              ? 'bg-teal-500/20 text-teal-400 border border-teal-500/50'
+              : isDisabled 
+              ? 'text-gray-600 cursor-not-allowed' 
+              : 'text-white hover:bg-slate-700 hover:text-teal-400'
+            }
+          `}
+        >
+          {day}
+        </button>
+      )
+    }
+    
+    return (
+      <div className="bg-slate-800/60 backdrop-blur-sm rounded-lg border border-slate-600/50 p-[1.5vh] lg:p-[0.8vw]">
+        {/* Calendar Header */}
+        <div className="flex items-center justify-between mb-[1.5vh] lg:mb-[0.8vw]">
+          <button
+            onClick={() => navigateMonth('prev')}
+            className="p-[0.8vh] lg:p-[0.4vw] rounded-lg hover:bg-slate-700 text-white transition-colors"
+          >
+            <ChevronLeft className="w-[1.6vh] h-[1.6vh] lg:w-[0.8vw] lg:h-[0.8vw]" />
+          </button>
+          
+          <h3 className="text-white font-semibold text-[1.5vh] lg:text-[0.75vw]">
+            {monthFormatter.format(calendarView)} {year}
+          </h3>
+          
+          <button
+            onClick={() => navigateMonth('next')}
+            className="p-[0.8vh] lg:p-[0.4vw] rounded-lg hover:bg-slate-700 text-white transition-colors"
+          >
+            <ChevronRight className="w-[1.6vh] h-[1.6vh] lg:w-[0.8vw] lg:h-[0.8vw]" />
+          </button>
+        </div>
+        
+        {/* Days of week headers */}
+        <div className="grid grid-cols-7 gap-[0.3vh] lg:gap-[0.2vw] mb-[0.8vh] lg:mb-[0.4vw]">
+          {weekdayHeaders.map(day => (
+            <div key={day} className="text-center text-gray-400 text-[1vh] lg:text-[0.5vw] font-medium py-[0.3vh] lg:py-[0.2vw]">
+              {day}
+            </div>
+          ))}
+        </div>
+        
+        {/* Calendar days */}
+        <div className="grid grid-cols-7 gap-[0.3vh] lg:gap-[0.2vw]">
+          {days}
         </div>
       </div>
+    )
+  }
 
-      {/* Category Filter Tabs */}
-      <div className="flex flex-wrap gap-[1.5vh] lg:gap-[0.5vw] justify-center px-[2vh] lg:px-[0.8vw]">
-        {categories.map((category) => (
-          <button
-            key={category}
-            onClick={() => setSelectedCategory(category as 'preset' | 'custom')}
-            className={clsx(
-              'px-[3vh] lg:px-[1vw] py-[1vh] lg:py-[0.3vw] rounded-full font-medium transition-all duration-300 text-[1.8vh] lg:text-[0.6vw] flex items-center space-x-[1vh] lg:space-x-[0.3vw]',
-              selectedCategory === category
-                ? 'bg-teal-500 text-white shadow-lg'
-                : 'bg-slate-600 text-gray-300 hover:bg-slate-500'
-            )}
-          >
-            {category === 'preset' ? (
-              <Target className="w-[2vh] h-[2vh] lg:w-[0.8vw] lg:h-[0.8vw]" />
-            ) : (
-              <Clock className="w-[2vh] h-[2vh] lg:w-[0.8vw] lg:h-[0.8vw]" />
-            )}
-            <span>{category === 'preset' ? 'Preset Slots' : 'Custom Time'}</span>
-          </button>
-        ))}
+  if (cartLoading) {
+    return <TimingSkeleton />
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-[8vh] lg:py-[4vw]">
+        <AlertTriangle className="w-[8vh] h-[8vh] lg:w-[4vw] lg:h-[4vw] text-red-400 mx-auto mb-[2vh] lg:mb-[1vw]" />
+        <h3 className="text-white text-[2.5vh] lg:text-[1.2vw] font-semibold mb-[1vh] lg:mb-[0.5vw]">{t('unable_to_load_availability_error')}</h3>
+        <p className="text-gray-400 text-[1.8vh] lg:text-[0.9vw]">{t('please_try_again_later')}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-[3vh] lg:space-y-[1.5vw]">
+      {/* Header */}
+      <div className="text-center">
+        <h2 className="text-[3.5vh] lg:text-[1.4vw] font-bold text-white mb-[1vh] lg:mb-[0.3vw]">
+          {t('choose_date_time')}
+        </h2>
+        <p className="text-gray-400 text-[1.8vh] lg:text-[0.9vw]">{t('step_3_of_5')}</p>
+        {/* <p className="text-gray-300 text-[1.6vh] lg:text-[0.8vw] mt-[1vh] lg:mt-[0.5vw]">
+          Select your preferred date and time for the event
+        </p> */}
       </div>
 
-      {/* Timing Options */}
-      <div className="relative">
-        <div className="flex items-center justify-between px-[2vh] lg:px-[1vw] mb-[2vh] lg:mb-[0.8vw]">
-          <div className="flex items-center space-x-[1.5vh] lg:space-x-[0.5vw]">
-            <h3 className="text-[2.2vh] lg:text-[0.9vw] font-medium text-gray-300">
-              {selectedCategory === 'preset' ? 'Quick Time Slots' : 'Custom Timing'}
-            </h3>
-            {selectedCategory === 'preset' && (
-              <span className="bg-teal-500/20 text-teal-400 px-[1.5vh] lg:px-[0.5vw] py-[0.5vh] lg:py-[0.2vw] rounded-full text-[1.4vh] lg:text-[0.6vw] font-medium">
-                {filteredSlots.length} slots
-              </span>
-            )}
+      {/* Main Content - Calendar Left, Time Slots Right */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-[2vh] lg:gap-[1.5vw]">
+        
+        {/* Left Side - Calendar */}
+        <div className="order-1 lg:order-1">
+          <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw] mb-[1.5vh] lg:mb-[0.8vw]">
+            <Calendar className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] text-teal-400" />
+            <h3 className="text-white font-semibold text-[1.8vh] lg:text-[0.9vw]">{t('select_date_calendar')}</h3>
           </div>
-          {selectedCategory === 'preset' && filteredSlots.length > 4 && (
-            <div className="text-gray-400 text-[1.4vh] lg:text-[0.6vw] flex items-center space-x-[0.5vh] lg:space-x-[0.2vw]">
-              <span>Swipe to see more</span>
-              <svg className="w-[2vh] h-[2vh] lg:w-[0.8vw] lg:h-[0.8vw] animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-              </svg>
+          {renderCalendar()}
+        </div>
+
+        {/* Right Side - Time Selection (appears when date is selected) */}
+        <div className="order-2 lg:order-2">
+          {selectedDate ? (
+            <div className="bg-slate-800/60 backdrop-blur-sm rounded-lg border border-slate-600/50 p-[2vh] lg:p-[1vw]">
+              <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw] mb-[2vh] lg:mb-[1vw]">
+                <Clock className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] text-teal-400" />
+                <h3 className="text-white font-semibold text-[1.6vh] lg:text-[0.8vw]">
+                  {t('time_for_date').replace('{date}', new Date(selectedDate).toLocaleDateString())}
+                </h3>
+              </div>
+
+              {/* Time Selection */}
+              <div className="space-y-[1.5vh] lg:space-y-[0.8vw] mb-[2vh] lg:mb-[1vw]">
+                {/* Start Time */}
+                <div>
+                  <label className="block text-white font-medium text-[1.4vh] lg:text-[0.7vw] mb-[0.8vh] lg:mb-[0.4vw]">
+                    {t('start_time')}
+                  </label>
+                  <select
+                    value={selectedStartTime}
+                    onChange={(e) => setSelectedStartTime(e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-[1.5vh] lg:px-[0.8vw] py-[1.2vh] lg:py-[0.6vw] text-white text-[1.4vh] lg:text-[0.7vw] focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="">{t('select_start_time')}</option>
+                    {timeOptions.map((time) => (
+                      <option key={time} value={time}>
+                        {time}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* End Time */}
+                <div>
+                  <label className="block text-white font-medium text-[1.4vh] lg:text-[0.7vw] mb-[0.8vh] lg:mb-[0.4vw]">
+                    {t('end_time')}
+                  </label>
+                  <select
+                    value={selectedEndTime}
+                    onChange={(e) => setSelectedEndTime(e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-[1.5vh] lg:px-[0.8vw] py-[1.2vh] lg:py-[0.6vw] text-white text-[1.4vh] lg:text-[0.7vw] focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="">{t('select_end_time')}</option>
+                    {timeOptions.map((time) => (
+                      <option key={time} value={time}>
+                        {time}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Duration and Pricing Info */}
+              {totalHours > 0 && (
+                <div className="bg-slate-700/50 rounded-lg p-[1.5vh] lg:p-[0.8vw] mb-[2vh] lg:mb-[1vw]">
+                  <div className="space-y-[1vh] lg:space-y-[0.5vw]">
+                    <div>
+                      <h4 className="text-white font-medium text-[1.3vh] lg:text-[0.65vw] mb-[0.5vh] lg:mb-[0.3vw]">{t('duration')}</h4>
+                      <p className="text-teal-400 font-semibold text-[1.5vh] lg:text-[0.75vw]">
+                        {totalHours} hour{totalHours !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="text-white font-medium text-[1.3vh] lg:text-[0.65vw] mb-[0.5vh] lg:mb-[0.3vw]">{t('cart_cost')}</h4>
+                      <div className="space-y-[0.3vh] lg:space-y-[0.2vw]">
+                        {totalHours <= 4 ? (
+                          <p className="text-teal-400 font-semibold text-[1.5vh] lg:text-[0.75vw]">
+                            {t('base_price_text').replace('{amount}', `€${cartCost.toFixed(2)}`)}
+                          </p>
+                        ) : (
+                          <>
+                            <p className="text-gray-400 text-[1.1vh] lg:text-[0.55vw]">
+                              Base (4hrs): €{cartData?.pricePerHour || 150}
+                            </p>
+                            <p className="text-gray-400 text-[1.1vh] lg:text-[0.55vw]">
+                              Extra ({totalHours - 4}hrs): €{((totalHours - 4) * (cartData?.extraHourPrice || 0)).toFixed(2)}
+                            </p>
+                            <p className="text-teal-400 font-semibold text-[1.5vh] lg:text-[0.75vw]">
+                              Total: €{cartCost.toFixed(2)}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Status Messages */}
+              {conflicts.length > 0 && (
+                <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-[1.5vh] lg:p-[0.8vw] mb-[1.5vh] lg:mb-[0.8vw]">
+                  <div className="flex items-center space-x-[0.8vh] lg:space-x-[0.4vw]">
+                    <AlertTriangle className="w-[1.8vh] h-[1.8vh] lg:w-[0.9vw] lg:h-[0.9vw] text-red-400" />
+                    <div>
+                      <h4 className="text-red-400 font-medium text-[1.2vh] lg:text-[0.6vw]">⚠️ {t('time_slot_unavailable')}</h4>
+                      <p className="text-red-300 text-[1vh] lg:text-[0.5vw]">
+                        {t('time_conflict_message').replace('{start}', conflictingBooking?.startTime || '').replace('{end}', conflictingBooking?.endTime || '')}
+                      </p>
+                      <p className="text-red-200 text-[0.9vh] lg:text-[0.45vw] mt-[0.5vh] lg:mt-[0.25vw]">
+                        {t('select_different_time')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isFormValid && (
+                <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-[1.5vh] lg:p-[0.8vw]">
+                  <div className="flex items-center space-x-[0.8vh] lg:space-x-[0.4vw]">
+                    <Check className="w-[1.8vh] h-[1.8vh] lg:w-[0.9vw] lg:h-[0.9vw] text-green-400" />
+                    <div>
+                              <h4 className="text-green-400 font-medium text-[1.2vh] lg:text-[0.6vw]">{t('time_available')}</h4>
+        <p className="text-green-300 text-[1vh] lg:text-[0.5vw]">{t('ready_to_proceed')}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-slate-800/60 backdrop-blur-sm rounded-lg border border-slate-600/50 p-[4vh] lg:p-[2vw] text-center">
+              <Calendar className="w-[6vh] h-[6vh] lg:w-[3vw] lg:h-[3vw] text-gray-400 mx-auto mb-[1.5vh] lg:mb-[0.8vw]" />
+              <h3 className="text-white font-semibold text-[1.6vh] lg:text-[0.8vw] mb-[0.8vh] lg:mb-[0.4vw]">
+                {t('select_a_date')}
+              </h3>
+              <p className="text-gray-400 text-[1.2vh] lg:text-[0.6vw]">
+                {t('choose_date_from_calendar')}
+              </p>
             </div>
           )}
         </div>
-
-        {selectedCategory === 'preset' ? (
-          <div className="relative max-w-[160vh] lg:max-w-[80vw] mx-auto">
-            <div className="overflow-hidden">
-              <Swiper
-                ref={swiperRef}
-                modules={[FreeMode, Mousewheel]}
-                spaceBetween={16}
-                slidesPerView="auto"
-                centeredSlides={false}
-                freeMode={{
-                  enabled: true,
-                  sticky: false,
-                  momentumRatio: 0.25,
-                  momentumVelocityRatio: 0.25
-                }}
-                mousewheel={{
-                  forceToAxis: true,
-                  sensitivity: 1
-                }}
-                grabCursor={true}
-                watchOverflow={true}
-                breakpoints={{
-                  640: { spaceBetween: 20 },
-                  1024: { spaceBetween: 24 },
-                }}
-                className="timing-swiper"
-                style={{
-                  paddingLeft: '2vh',
-                  paddingRight: '2vh'
-                }}
-              >
-                {presetSlots.map((slot) => (
-                  <SwiperSlide key={slot.id} style={{ width: '26vh', minWidth: '26vh' }}>
-                    <div 
-                      className={clsx(
-                        'relative cursor-pointer transition-all duration-300 rounded-lg overflow-hidden group flex-shrink-0',
-                        'bg-slate-800 border shadow-sm hover:shadow-md',
-                        selectedPresetSlot === slot.id 
-                          ? 'border-green-500 ring-2 ring-green-500/20' 
-                          : 'border-slate-600 hover:border-slate-500'
-                      )}
-                      onClick={() => handlePresetSlotSelect(slot)}
-                    >
-                      {/* Selection Badge */}
-                      {selectedPresetSlot === slot.id && (
-                        <div className="absolute top-[0.8vh] lg:top-[0.4vw] right-[0.8vh] lg:right-[0.4vw] z-10">
-                          <div className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] rounded-full bg-green-500 flex items-center justify-center">
-                            <Check className="w-[1.2vh] h-[1.2vh] lg:w-[0.6vw] lg:h-[0.6vw] text-white" />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Time Slot Header */}
-                      <div className="relative h-[8vh] lg:h-[4vw] bg-slate-700 overflow-hidden flex items-center justify-center">
-                        {(() => {
-                          const IconComponent = slot.icon
-                          return <IconComponent className="w-[3vh] h-[3vh] lg:w-[1.5vw] lg:h-[1.5vw] text-teal-400" />
-                        })()}
-                        
-                        {/* Price Badge */}
-                        <div className="absolute top-[0.8vh] lg:top-[0.4vw] left-[0.8vh] lg:left-[0.4vw]">
-                          <div className="bg-teal-600 px-[1vh] lg:px-[0.5vw] py-[0.4vh] lg:py-[0.2vw] rounded text-white text-[1.2vh] lg:text-[0.6vw] font-semibold">
-                            ${slot.price}
-                          </div>
-                        </div>
-
-                        {/* Hours Badge */}
-                        <div className="absolute bottom-[0.8vh] lg:bottom-[0.4vw] right-[0.8vh] lg:right-[0.4vw]">
-                          <div className="bg-slate-600 px-[0.8vh] lg:px-[0.4vw] py-[0.3vh] lg:py-[0.15vw] rounded text-gray-300 text-[1vh] lg:text-[0.5vw] font-medium">
-                            {slot.hours}h
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Time Slot Details */}
-                      <div className="p-[1.2vh] lg:p-[0.6vw] space-y-[0.8vh] lg:space-y-[0.4vw]">
-                        {/* Slot Name */}
-                        <div>
-                          <h3 className="text-white font-semibold text-[1.4vh] lg:text-[0.7vw] leading-tight">
-                            {slot.name}
-                          </h3>
-                        </div>
-
-                        {/* Time Range */}
-                        <div className="flex items-center text-gray-300 text-[1.2vh] lg:text-[0.6vw]">
-                          <Clock className="w-[1.2vh] h-[1.2vh] lg:w-[0.6vw] lg:h-[0.6vw] mr-[0.5vh] lg:mr-[0.25vw] text-teal-400" />
-                          <span>{slot.startTime} - {slot.endTime}</span>
-                        </div>
-
-                        {/* Description */}
-                        <p className="text-gray-400 text-[1.1vh] lg:text-[0.55vw] leading-relaxed line-clamp-2">
-                          {slot.description}
-                        </p>
-
-                        {/* Selection Status - Always present to maintain height */}
-                        <div className={`text-right font-medium text-[1.2vh] lg:text-[0.6vw] pt-[0.4vh] lg:pt-[0.2vw] min-h-[2vh] lg:min-h-[1vw] ${
-                          selectedPresetSlot === slot.id 
-                            ? 'text-teal-400 border-t border-slate-700' 
-                            : 'text-transparent'
-                        }`}>
-                          {selectedPresetSlot === slot.id ? 'Selected' : 'Available'}
-                        </div>
-                      </div>
-                    </div>
-                  </SwiperSlide>
-                ))}
-              </Swiper>
-            </div>
-          </div>
-        ) : (
-          /* Custom Time Selection */
-          <div className="bg-slate-800/60 backdrop-blur-sm rounded-lg p-[2vh] lg:p-[1vw] mx-[2vh] lg:mx-[1vw]">
-            <div className="grid md:grid-cols-2 gap-[2vh] lg:gap-[1vw]">
-              <div>
-                <label className="block text-[1.4vh] lg:text-[0.7vw] font-medium text-gray-300 mb-[1vh] lg:mb-[0.5vw]">
-                  Start Time
-                </label>
-                <select
-                  value={selectedStartTime}
-                  onChange={(e) => setSelectedStartTime(e.target.value)}
-                  className="timing-dropdown w-full px-[2vh] lg:px-[1vw] py-[1.5vh] lg:py-[0.8vw] bg-slate-600 border border-slate-500 rounded-lg text-white text-[1.6vh] lg:text-[0.8vw] focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all duration-300"
-                >
-                  <option value="">Select start time</option>
-                  {timeOptions.map((time) => (
-                    <option key={time} value={time} className="bg-slate-600">
-                      {time}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-[1.4vh] lg:text-[0.7vw] font-medium text-gray-300 mb-[1vh] lg:mb-[0.5vw]">
-                  End Time
-                </label>
-                <select
-                  value={selectedEndTime}
-                  onChange={(e) => setSelectedEndTime(e.target.value)}
-                  className="timing-dropdown w-full px-[2vh] lg:px-[1vw] py-[1.5vh] lg:py-[0.8vw] bg-slate-600 border border-slate-500 rounded-lg text-white text-[1.6vh] lg:text-[0.8vw] focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all duration-300"
-                >
-                  <option value="">Select end time</option>
-                  {timeOptions.filter(time => time > selectedStartTime).map((time) => (
-                    <option key={time} value={time} className="bg-slate-600">
-                      {time}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            
-            {selectedStartTime && selectedEndTime && (
-              <div className="mt-[2vh] lg:mt-[1vw] p-[2vh] lg:p-[1vw] bg-slate-700/50 rounded-lg">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-300 text-[1.4vh] lg:text-[0.7vw]">Duration:</span>
-                  <span className="text-white font-medium text-[1.4vh] lg:text-[0.7vw]">{totalHours.toFixed(1)} hours</span>
-                </div>
-                <div className="flex justify-between items-center mt-[0.5vh] lg:mt-[0.3vw]">
-                  <span className="text-gray-300 text-[1.4vh] lg:text-[0.7vw]">Estimated Cost:</span>
-                  <span className="text-teal-400 font-bold text-[1.6vh] lg:text-[0.8vw]">${(totalHours * currentCartRate).toFixed(2)}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
-      {/* Status Messages */}
-      {loading && (
-        <div className="flex items-center justify-center py-[2vh] lg:py-[1vw]">
-          <div className="animate-spin rounded-full h-[3vh] w-[3vh] lg:h-[1.5vw] lg:w-[1.5vw] border-4 border-teal-500 border-t-transparent mr-[1vh] lg:mr-[0.5vw]"></div>
-          <span className="text-gray-300 text-[1.6vh] lg:text-[0.8vw]">Checking availability...</span>
-        </div>
-      )}
-
-      {conflicts.length > 0 && (
-        <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-[2vh] lg:p-[1vw] mx-[2vh] lg:mx-[1vw]">
-          <h4 className="font-bold text-red-400 mb-[1vh] lg:mb-[0.5vw] flex items-center text-[1.6vh] lg:text-[0.8vw]">
-            <AlertTriangle className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] mr-[0.5vh] lg:mr-[0.3vw]" />
-            Time Conflict Detected
-          </h4>
-          <p className="text-red-300 text-[1.4vh] lg:text-[0.7vw]">
-            Your selected time overlaps with existing bookings. Please choose a different time slot.
-          </p>
-        </div>
-      )}
-
       {/* Navigation */}
-      <div className="text-center space-y-[1.5vh] lg:space-y-[0.8vw] pt-[2vh] lg:pt-[0vw] max-w-[160vh] lg:max-w-[80vw] mx-auto px-[2vh] lg:px-[0.8vw]">
-        <div className="flex justify-between">
-          <Button
-            variant="outline"
-            onClick={onPrevious}
-            size="md"
-            className="px-[4vh] lg:px-[2vw] py-[1.2vh] lg:py-[0.6vw] text-[1.8vh] lg:text-[0.9vw] font-semibold"
-          >
-            Previous
-          </Button>
-          <Button
-            onClick={handleNext}
-            disabled={!isFormValid || loading}
-            size="md"
-            className="px-[4vh] lg:px-[2vw] py-[1.2vh] lg:py-[0.6vw] text-[1.8vh] lg:text-[0.9vw] font-semibold"
-          >
-            {loading ? 'Checking...' : (
-              <div className="flex items-center">
-                <Check className="w-[1.8vh] h-[1.8vh] lg:w-[0.9vw] lg:h-[0.9vw] mr-[0.8vh] lg:mr-[0.4vw]" />
-                Continue
-              </div>
-            )}
-          </Button>
-        </div>
+      <div className="flex justify-between items-center">
+        <Button
+          variant="outline"
+          onClick={onPrevious}
+          size="md"
+          className="px-[4vh] lg:px-[2vw] py-[1.2vh] lg:py-[0.6vw] text-[1.8vh] lg:text-[0.9vw] font-semibold"
+        >
+          {t('previous')}
+        </Button>
+
+        <Button
+          onClick={handleNext}
+          disabled={!isFormValid}
+          size="md"
+          className="px-[4vh] lg:px-[2vw] py-[1.2vh] lg:py-[0.6vw] text-[1.8vh] lg:text-[0.9vw] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {t('continue')}
+        </Button>
       </div>
     </div>
   )

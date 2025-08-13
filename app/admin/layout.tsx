@@ -17,7 +17,8 @@ import {
   LogOut, 
   Menu, 
   X,
-  Home
+  Home,
+  CreditCard
 } from 'lucide-react'
 
 interface AdminLayoutProps {
@@ -106,7 +107,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     Calendar,
     Truck,
     ChefHat,
-    Users
+    Users,
+    CreditCard
   } as const
 
   const navigation = [
@@ -115,6 +117,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { name: 'Food Carts', href: '/admin/food-carts', icon: 'Truck', description: 'Cart management' },
     { name: 'Food Items', href: '/admin/food-items', icon: 'ChefHat', description: 'Menu items' },
     { name: 'Services', href: '/admin/services', icon: 'Users', description: 'Staff & services' },
+    { name: 'Payments', href: '/admin/payments', icon: 'CreditCard', description: 'PayPal settings' },
   ]
 
   return (

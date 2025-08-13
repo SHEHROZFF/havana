@@ -1,6 +1,7 @@
 'use client'
 
 import { clsx } from 'clsx'
+import { useI18n } from '@/lib/i18n/context'
 
 interface Step {
   id: string
@@ -15,6 +16,39 @@ interface StepIndicatorProps {
 }
 
 export default function StepIndicator({ steps, currentStep, completedSteps }: StepIndicatorProps) {
+  const { t } = useI18n()
+  
+  // Function to get translated step title and description
+  const getTranslatedStep = (step: Step) => {
+    const stepTranslations: Record<string, { title: string; description: string }> = {
+      'cart-selection': {
+        title: t('step_cart_selection_title'),
+        description: t('step_cart_selection_desc')
+      },
+      'extras': {
+        title: t('step_extras_title'),
+        description: t('step_extras_desc')
+      },
+      'timing': {
+        title: t('step_timing_title'),
+        description: t('step_timing_desc')
+      },
+      'delivery': {
+        title: t('step_delivery_title'),
+        description: t('step_delivery_desc')
+      },
+      'customer-info': {
+        title: t('step_customer_info_title'),
+        description: t('step_customer_info_desc')
+      },
+      'payment': {
+        title: t('step_payment_title'),
+        description: t('step_payment_desc')
+      }
+    }
+    return stepTranslations[step.id] || { title: step.title, description: step.description || '' }
+  }
+
   return (
     <nav aria-label="Progress" className="mb-[6vh] lg:mb-[1.5vw]">
       <div className="flex items-center justify-center">
@@ -23,6 +57,7 @@ export default function StepIndicator({ steps, currentStep, completedSteps }: St
             const isCompleted = completedSteps.includes(step.id)
             const isCurrent = step.id === currentStep
             const isUpcoming = !isCompleted && !isCurrent
+            const translatedStep = getTranslatedStep(step)
 
             return (
               <li key={step.id} className="flex items-center">
@@ -49,7 +84,8 @@ export default function StepIndicator({ steps, currentStep, completedSteps }: St
                       <span>{index + 1}</span>
                     )}
                   </div>
-                  <div className="mt-[1.5vh] lg:mt-[0.4vw] text-center">
+                  {/* Hide titles/descriptions on mobile; only show numbered circles */}
+                  <div className="mt-[1.5vh] lg:mt-[0.4vw] text-center hidden lg:block">
                     <p
                       className={clsx(
                         'text-[1.8vh] lg:text-[0.6vw] font-medium',
@@ -59,11 +95,11 @@ export default function StepIndicator({ steps, currentStep, completedSteps }: St
                         }
                       )}
                     >
-                      {step.title}
+                      {translatedStep.title}
                     </p>
-                    {step.description && (
-                      <p className="text-[1.4vh] lg:text-[0.5vw] text-gray-500 mt-[0.5vh] lg:mt-[0.2vw] max-w-[10vh] lg:max-w-[4vw]">
-                        {step.description}
+                    {translatedStep.description && (
+                      <p className="text-[1.4vh] lg:text-[0.5vw] text-white mt-[0.5vh] lg:mt-[0.2vw] max-w-[10vh] lg:max-w-[4vw]">
+                        {translatedStep.description}
                       </p>
                     )}
                   </div>

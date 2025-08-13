@@ -25,7 +25,7 @@ const HAVANA_VAN_IMAGES = [
   'https://havana.gr/wp-content/uploads/2025/06/vintage-van-on-transparent-background-free-png.webp'
 ]
 
-export default function CartSelectionStep({ formData, updateFormData, onNext }: CartSelectionStepProps) {
+export default function CartSelectionStepTranslated({ formData, updateFormData, onNext }: CartSelectionStepProps) {
   const [selectedCartId, setSelectedCartId] = useState(formData.selectedCartId || '')
   const { t } = useI18n()
 
@@ -89,15 +89,10 @@ export default function CartSelectionStep({ formData, updateFormData, onNext }: 
     return (
       <div className="text-center py-[8vh] lg:py-[6vw]">
         <div className="text-[8vh] lg:text-[4vw] mb-[2vh] lg:mb-[1vw]">⚠️</div>
-        <h3 className="text-[2.8vh] lg:text-[1.4vw] font-semibold text-white mb-[1vh] lg:mb-[0.5vw]">{t('unable_to_load_carts')}</h3>
-        <p className="text-red-400 mb-[2vh] lg:mb-[1vw] text-[2vh] lg:text-[1vw]">{t('failed_to_load_food_carts')}</p>
-        <Button 
-          onClick={() => window.location.reload()}
-          variant="outline"
-          className="text-[2vh] lg:text-[1vw] px-[3vh] lg:px-[1.5vw] py-[1.5vh] lg:py-[0.8vw]"
-        >
-          {t('try_again')}
-        </Button>
+        <h3 className="text-[2.8vh] lg:text-[1.4vw] font-semibold text-white mb-[1vh] lg:mb-[0.5vw]">{t('error')}</h3>
+        <p className="text-gray-400 mb-[2vh] lg:mb-[1vw] text-[2vh] lg:text-[1vw] px-[2vh] lg:px-[1vw]">
+          {t('unable_to_load_availability')}
+        </p>
       </div>
     )
   }
@@ -204,13 +199,13 @@ export default function CartSelectionStep({ formData, updateFormData, onNext }: 
                   {/* Pricing */}
                   <div className="bg-slate-700/50 rounded-lg p-[1.5vh] lg:p-[0.75vw] space-y-[0.8vh] lg:space-y-[0.4vw]">
                     <div className="flex justify-between items-center">
-                      <span className='text-white'>{t('cart_base_price_4hrs')}</span>
-                      <span className="font-bold text-white">€{cart.pricePerHour.toFixed(2)}</span>
+                      <span>{t('cart_base_price_4hrs')}</span>
+                      <span className="font-bold text-white">${cart.pricePerHour.toFixed(2)}</span>
                     </div>
                     {cart.extraHourPrice > 0 && (
                       <div className="flex justify-between items-center text-[1.3vh] lg:text-[0.65vw]">
-                        <span className='text-white'>{t('cart_extra_hours_after_4')}</span>
-                        <span className="font-medium text-yellow-400">+€{cart.extraHourPrice.toFixed(2)}</span>
+                        <span>{t('cart_extra_hours_after_4')}</span>
+                        <span className="font-medium text-yellow-400">+${cart.extraHourPrice.toFixed(2)}</span>
                       </div>
                     )}
                   </div>
@@ -340,14 +335,7 @@ export default function CartSelectionStep({ formData, updateFormData, onNext }: 
           disabled={!selectedCartId}
           className="px-[6vh] lg:px-[3vw] bg-teal-600 hover:bg-teal-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
         >
-          {selectedCartId ? (
-          <div className="flex items-center">
-            <Check className="w-[1.8vh] h-[1.8vh] lg:w-[0.9vw] lg:h-[0.9vw] mr-[0.8vh] lg:mr-[0.4vw]" />
-            {t('continue_to_menu')}
-          </div>
-        ) : (
-          t('select_a_cart_to_continue')
-        )}
+          {t('next')}
         </Button>
       </div>
     </div>

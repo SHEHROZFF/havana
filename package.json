@@ -12,6 +12,8 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@paypal/checkout-server-sdk": "^1.0.3",
+    "@paypal/react-paypal-js": "^8.8.3",
     "@prisma/client": "^6.13.0",
     "@reduxjs/toolkit": "^2.8.2",
     "@types/bcryptjs": "^2.4.6",
