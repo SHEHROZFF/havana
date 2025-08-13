@@ -5,7 +5,7 @@ import { BookingFormData } from '@/types/booking'
 import { useGetFoodCartByIdQuery } from '@/lib/api/foodCartsApi'
 import Button from '@/components/ui/Button'
 
-import { Truck, MapPin, Check, Home, AlertCircle } from 'lucide-react'
+import { Truck, MapPin, Check, Home, AlertCircle, Euro } from 'lucide-react'
 import { clsx } from 'clsx'
 import DeliveryStepSkeleton from '@/components/ui/skeletons/DeliveryStepSkeleton'
 import { useI18n } from '@/lib/i18n/context'
@@ -101,21 +101,15 @@ export default function DeliveryStep({ formData, updateFormData, onNext, onPrevi
                 )}
               </div>
 
-              {/* Features */}
-              {/* <div className="space-y-[1vh] lg:space-y-[0.5vw]">
-                <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw] text-[1.4vh] lg:text-[0.7vw] text-gray-300">
-                  <Clock className="w-[1.6vh] h-[1.6vh] lg:w-[0.8vw] lg:h-[0.8vw] text-teal-400" />
-                  <span>{t('ready_in_minutes')}</span>
+              {/* Pricing */}
+              <div className="mt-[2vh] lg:mt-[1vw] pt-[2vh] lg:pt-[1vw] border-t border-slate-600/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-[1.6vh] lg:text-[0.8vw] text-gray-400">{t('delivery_cost')}</span>
+                  <div className="flex items-center space-x-[0.5vh] lg:space-x-[0.25vw]">
+                    <span className="text-[2vh] lg:text-[1vw] font-bold text-green-400">{t('pickup_free')}</span>
+                  </div>
                 </div>
-                <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw] text-[1.4vh] lg:text-[0.7vw] text-gray-300">
-                  <MapPin className="w-[1.6vh] h-[1.6vh] lg:w-[0.8vw] lg:h-[0.8vw] text-teal-400" />
-                  <span>{t('our_warehouse_location')}</span>
-                </div>
-                <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw] text-[1.4vh] lg:text-[0.7vw] text-gray-300">
-                  <DollarSign className="w-[1.6vh] h-[1.6vh] lg:w-[0.8vw] lg:h-[0.8vw] text-green-400" />
-                  <span>{t('no_additional_charges')}</span>
-                </div>
-              </div> */}
+              </div>
 
 
             </div>
@@ -153,21 +147,18 @@ export default function DeliveryStep({ formData, updateFormData, onNext, onPrevi
                 )}
               </div>
 
-              {/* Features */}
-              {/* <div className="space-y-[1vh] lg:space-y-[0.5vw]">
-                <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw] text-[1.4vh] lg:text-[0.7vw] text-gray-300">
-                  <Clock className="w-[1.6vh] h-[1.6vh] lg:w-[0.8vw] lg:h-[0.8vw] text-teal-400" />
-                  <span>{t('delivered_on_event_day')}</span>
+              {/* Pricing */}
+              <div className="mt-[2vh] lg:mt-[1vw] pt-[2vh] lg:pt-[1vw] border-t border-slate-600/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-[1.6vh] lg:text-[0.8vw] text-gray-400">{t('delivery_cost')}</span>
+                  <div className="flex items-center space-x-[0.5vh] lg:space-x-[0.25vw]">
+                    <Euro className="w-[1.6vh] h-[1.6vh] lg:w-[0.8vw] lg:h-[0.8vw] text-teal-400" />
+                    <span className="text-[2vh] lg:text-[1vw] font-bold text-white">
+                      {cartData?.shippingPrice?.toFixed(2) || '0.00'}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw] text-[1.4vh] lg:text-[0.7vw] text-gray-300">
-                  <Package className="w-[1.6vh] h-[1.6vh] lg:w-[0.8vw] lg:h-[0.8vw] text-teal-400" />
-                  <span>{t('professional_setup_included')}</span>
-                </div>
-                <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw] text-[1.4vh] lg:text-[0.7vw] text-gray-300">
-                  <MapPin className="w-[1.6vh] h-[1.6vh] lg:w-[0.8vw] lg:h-[0.8vw] text-teal-400" />
-                  <span>{t('to_your_specified_address')}</span>
-                </div>
-              </div> */}
+              </div>
 
 
             </div>
