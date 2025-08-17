@@ -20,7 +20,8 @@ import {
   Menu, 
   X,
   Home,
-  CreditCard
+  CreditCard,
+  Building2
 } from 'lucide-react'
 
 interface AdminLayoutProps {
@@ -111,7 +112,8 @@ function AdminLayoutInner({ children }: AdminLayoutProps) {
     Truck,
     ChefHat,
     Users,
-    CreditCard
+    CreditCard,
+    Building2
   } as const
 
   const navigation = [
@@ -120,6 +122,7 @@ function AdminLayoutInner({ children }: AdminLayoutProps) {
     { name: t('food_carts'), href: '/admin/food-carts', icon: 'Truck', description: t('food_carts_description') },
     { name: t('food_items'), href: '/admin/food-items', icon: 'ChefHat', description: t('food_items_description') },
     { name: t('services'), href: '/admin/services', icon: 'Users', description: t('services_description') },
+    { name: t('bank_settings'), href: '/admin/bank-settings', icon: 'Building2', description: t('configure_bank_transfer_details') },
     { name: t('payments'), href: '/admin/payments', icon: 'CreditCard', description: t('payments_description') },
   ]
 

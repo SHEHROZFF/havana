@@ -1,23 +1,111 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-// GET /api/availability - Check cart availability for specific date
+// GET /api/availability - Check cart availability for specific date(s)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const cartId = searchParams.get('cartId')
     const date = searchParams.get('date')
+    const dates = searchParams.get('dates') // Support multiple dates as JSON array
     const startTime = searchParams.get('startTime')
     const endTime = searchParams.get('endTime')
 
-    if (!cartId || !date) {
+    if (!cartId || (!date && !dates)) {
       return NextResponse.json(
-        { error: 'cartId and date are required' },
+        { error: 'cartId and date(s) are required' },
         { status: 400 }
       )
     }
 
+    // Handle multiple dates if provided
+    if (dates) {
+      try {
+        const dateArray = JSON.parse(dates)
+        if (!Array.isArray(dateArray)) {
+          return NextResponse.json(
+            { error: 'dates must be a JSON array' },
+            { status: 400 }
+          )
+        }
+
+        const results = []
+        for (const dateObj of dateArray) {
+          const { date: checkDate, startTime: checkStartTime, endTime: checkEndTime } = dateObj
+          if (!checkDate || !checkStartTime || !checkEndTime) {
+            continue
+          }
+
+          const parsedDate = new Date(checkDate)
+          if (isNaN(parsedDate.getTime())) {
+            continue
+          }
+
+          // Check for conflicts in the new BookingDate model
+          const existingBookingDates = await (prisma as any).bookingDate.findMany({
+            where: {
+              date: parsedDate,
+              booking: {
+                cartId: cartId,
+                status: {
+                  in: ['PENDING', 'CONFIRMED']
+                }
+              }
+            },
+            select: {
+              id: true,
+              startTime: true,
+              endTime: true,
+              date: true,
+              booking: {
+                select: {
+                  id: true,
+                  customerFirstName: true,
+                  customerLastName: true
+                }
+              }
+            }
+          })
+
+          const conflictingBooking = existingBookingDates.find((bookingDate: any) => {
+            return (
+              (bookingDate.startTime <= checkStartTime && bookingDate.endTime > checkStartTime) ||
+              (bookingDate.startTime < checkEndTime && bookingDate.endTime >= checkEndTime) ||
+              (bookingDate.startTime >= checkStartTime && bookingDate.endTime <= checkEndTime)
+            )
+          })
+
+          results.push({
+            date: checkDate,
+            startTime: checkStartTime,
+            endTime: checkEndTime,
+            isAvailable: !conflictingBooking,
+            conflictingBooking: conflictingBooking || null,
+            bookedSlots: existingBookingDates
+          })
+        }
+
+        return NextResponse.json({
+          cartId,
+          type: 'multiple',
+          results
+        })
+      } catch (error) {
+        return NextResponse.json(
+          { error: 'Invalid dates format' },
+          { status: 400 }
+        )
+      }
+    }
+
     // Validate and parse the date
+    if (!date) {
+      return NextResponse.json(
+        { error: 'Date is required' },
+        { status: 400 }
+      )
+    }
+    
     const parsedDate = new Date(date)
     if (isNaN(parsedDate.getTime())) {
       return NextResponse.json(
@@ -26,31 +114,40 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get existing bookings for the cart on the specified date
-    const existingBookings = await prisma.booking.findMany({
+    // Get existing booking dates for the cart on the specified date
+    const existingBookingDates = await (prisma as any).bookingDate.findMany({
       where: {
-        cartId: cartId,
-        bookingDate: parsedDate,
-        status: {
-          in: ['PENDING', 'CONFIRMED']
+        date: parsedDate,
+        booking: {
+          cartId: cartId,
+          status: {
+            in: ['PENDING', 'CONFIRMED']
+          }
         }
       },
       select: {
         id: true,
         startTime: true,
         endTime: true,
-        bookingDate: true
+        date: true,
+        booking: {
+          select: {
+            id: true,
+            customerFirstName: true,
+            customerLastName: true
+          }
+        }
       }
     })
 
     // If specific time range is provided, check for conflicts with that time
     if (startTime && endTime) {
-      const conflictingBooking = existingBookings.find((booking: any) => {
+      const conflictingBooking = existingBookingDates.find((bookingDate: any) => {
         // Use the EXACT same logic as in booking creation
         return (
-          (booking.startTime <= startTime && booking.endTime > startTime) ||
-          (booking.startTime < endTime && booking.endTime >= endTime) ||
-          (booking.startTime >= startTime && booking.endTime <= endTime)
+          (bookingDate.startTime <= startTime && bookingDate.endTime > startTime) ||
+          (bookingDate.startTime < endTime && bookingDate.endTime >= endTime) ||
+          (bookingDate.startTime >= startTime && bookingDate.endTime <= endTime)
         )
       })
 
@@ -61,15 +158,15 @@ export async function GET(request: NextRequest) {
         endTime,
         isAvailable: !conflictingBooking,
         conflictingBooking: conflictingBooking || null,
-        bookedSlots: existingBookings
+        bookedSlots: existingBookingDates
       })
     }
 
-    // Default behavior - return all bookings for the date
+    // Default behavior - return all booking dates for the date
     return NextResponse.json({
       cartId,
       date,
-      bookedSlots: existingBookings,
+      bookedSlots: existingBookingDates,
       availableSlots: [] // No predefined slots, using custom time selection
     })
   } catch (error) {

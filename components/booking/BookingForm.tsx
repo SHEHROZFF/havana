@@ -21,6 +21,7 @@ function BookingFormContent() {
   const [formData, setFormData] = useState<Partial<BookingFormData>>({
     selectedItems: [],
     selectedServices: [],
+    selectedDates: [],
     totalAmount: 0,
     deliveryMethod: 'pickup',
     shippingAmount: 0,
@@ -32,7 +33,12 @@ function BookingFormContent() {
     customerCity: '',
     customerState: '',
     customerZip: '',
-    customerCountry: t('country_greece')
+    customerCountry: t('country_greece'),
+    // Legacy fields for backward compatibility
+    bookingDate: '',
+    startTime: '',
+    endTime: '',
+    totalHours: 0
   })
 
   const updateFormData = (data: Partial<BookingFormData>) => {

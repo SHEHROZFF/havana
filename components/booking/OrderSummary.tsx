@@ -31,8 +31,23 @@ export default function OrderSummary({ formData, className }: OrderSummaryProps)
     }, 0)
     total += servicesTotal
     
-    // Add cart cost (from formData amounts)
-    const cartTotal = formData.cartServiceAmount || 0
+    // Calculate cart cost from multiple dates or single date
+    let cartTotal = 0
+    let totalDays = 0
+    let totalHours = 0
+    
+    if (formData.selectedDates && formData.selectedDates.length > 0) {
+      // Multiple dates mode
+      cartTotal = formData.selectedDates.reduce((sum, date) => sum + date.cartCost, 0)
+      totalDays = formData.selectedDates.length
+      totalHours = formData.selectedDates.reduce((sum, date) => sum + date.totalHours, 0)
+    } else {
+      // Legacy single date mode
+      cartTotal = formData.cartServiceAmount || 0
+      totalDays = cartTotal > 0 ? 1 : 0
+      totalHours = formData.totalHours || 0
+    }
+    
     total += cartTotal
     
     // Add shipping cost
@@ -46,10 +61,13 @@ export default function OrderSummary({ formData, className }: OrderSummaryProps)
       shippingTotal,
       total,
       itemCount,
+      totalDays,
+      totalHours,
       hasFoodItems: (formData.selectedItems || []).length > 0,
       hasServices: (formData.selectedServices || []).length > 0,
       hasCart: !!formData.selectedCartId && cartTotal > 0,
-      hasShipping: formData.deliveryMethod === 'shipping' && shippingTotal > 0
+      hasShipping: formData.deliveryMethod === 'shipping' && shippingTotal > 0,
+      hasMultipleDates: (formData.selectedDates && formData.selectedDates.length > 1)
     }
   }, [formData])
 
@@ -70,9 +88,21 @@ export default function OrderSummary({ formData, className }: OrderSummaryProps)
         
         <div className="space-y-[1vh] lg:space-y-[0.5vw] text-[1.5vh] lg:text-[0.7vw]">
           {summary.hasCart && (
-            <div className="flex justify-between items-center">
-              <span className="text-gray-300">{t('cart_rental')}</span>
-              <span className="text-white font-medium">€{summary.cartTotal.toFixed(2)}</span>
+            <div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-300">
+                  {summary.hasMultipleDates 
+                    ? `Cart Rental (${summary.totalDays} days)`
+                    : t('cart_rental')
+                  }
+                </span>
+                <span className="text-white font-medium">€{summary.cartTotal.toFixed(2)}</span>
+              </div>
+              {summary.hasMultipleDates && (
+                <div className="text-[1.2vh] lg:text-[0.6vw] text-gray-400 mt-[0.5vh] lg:mt-[0.25vw]">
+                  Total: {summary.totalHours} hours across {summary.totalDays} days
+                </div>
+              )}
             </div>
           )}
           

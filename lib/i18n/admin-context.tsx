@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { dashboardTranslations } from './admin/dashboard'
 import { bookingsTranslations } from './admin/bookings'
+import { bankSettingsTranslations } from './admin/bank-settings'
 import { foodCartsTranslations } from './admin/food-carts'
 import { foodItemsTranslations } from './admin/food-items'
 import { servicesTranslations } from './admin/services'
@@ -15,7 +16,8 @@ type FoodCartsTranslationKey = keyof typeof foodCartsTranslations.el
 type FoodItemsTranslationKey = keyof typeof foodItemsTranslations.el
 type ServicesTranslationKey = keyof typeof servicesTranslations.el
 type PaymentsTranslationKey = keyof typeof paymentsTranslations.el
-type AdminTranslationKey = DashboardTranslationKey | BookingsTranslationKey | FoodCartsTranslationKey | FoodItemsTranslationKey | ServicesTranslationKey | PaymentsTranslationKey
+type BankSettingsTranslationKey = keyof typeof bankSettingsTranslations.el
+type AdminTranslationKey = DashboardTranslationKey | BookingsTranslationKey | BankSettingsTranslationKey | FoodCartsTranslationKey | FoodItemsTranslationKey | ServicesTranslationKey | PaymentsTranslationKey
 
 interface AdminI18nContextType {
   language: Language
@@ -55,6 +57,10 @@ export function AdminI18nProvider({ children }: { children: React.ReactNode }) {
     // Try bookings translations
     if (key in bookingsTranslations[language]) {
       return bookingsTranslations[language][key as BookingsTranslationKey] || bookingsTranslations.en[key as BookingsTranslationKey] || key
+    }
+    // Try bank settings translations
+    if (key in bankSettingsTranslations[language]) {
+      return bankSettingsTranslations[language][key as BankSettingsTranslationKey] || bankSettingsTranslations.en[key as BankSettingsTranslationKey] || key
     }
     // Try food carts translations
     if (key in foodCartsTranslations[language]) {

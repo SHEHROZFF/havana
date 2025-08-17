@@ -104,6 +104,56 @@ export async function GET(request: NextRequest) {
 
 
 
+    // Get payment slips for all bookings (if table exists)
+    let paymentSlipMap: Record<string, any> = {}
+    try {
+      const bookingIds = bookings.map((b: any) => b.id)
+      const paymentSlips = await (prisma as any).paymentSlip.findMany({
+        where: {
+          bookingId: {
+            in: bookingIds
+          }
+        }
+      })
+
+      // Create a map of payment slips by booking ID
+      paymentSlipMap = paymentSlips.reduce((acc: any, slip: any) => {
+        acc[slip.bookingId] = slip
+        return acc
+      }, {} as Record<string, any>)
+    } catch (error) {
+      // PaymentSlip table doesn't exist yet, skip
+      console.log('PaymentSlip table not found, skipping payment slip data')
+    }
+
+    // Get booking dates for all bookings (if table exists)
+    let bookingDatesMap: Record<string, any[]> = {}
+    try {
+      const bookingIds = bookings.map((b: any) => b.id)
+      const bookingDates = await (prisma as any).bookingDate.findMany({
+        where: {
+          bookingId: {
+            in: bookingIds
+          }
+        },
+        orderBy: {
+          date: 'asc'
+        }
+      })
+
+      // Create a map of booking dates by booking ID
+      bookingDatesMap = bookingDates.reduce((acc: any, bookingDate: any) => {
+        if (!acc[bookingDate.bookingId]) {
+          acc[bookingDate.bookingId] = []
+        }
+        acc[bookingDate.bookingId].push(bookingDate)
+        return acc
+      }, {} as Record<string, any[]>)
+    } catch (error) {
+      // BookingDate table doesn't exist yet, skip
+      console.log('BookingDate table not found, skipping booking dates data')
+    }
+
     // Transform bookings to match expected format
     const transformedBookings = bookings.map((booking: any) => ({
       id: booking.id,
@@ -128,6 +178,10 @@ export async function GET(request: NextRequest) {
       cartName: booking.cart?.name || '',
       selectedItems: booking.bookingItems || [],
       selectedServices: booking.bookingServices || [],
+      paymentMethod: booking.paymentMethod,
+      deliveryMethod: booking.deliveryMethod,
+      paymentSlip: paymentSlipMap[booking.id] || null,
+      bookingDates: bookingDatesMap[booking.id] || [], // NEW: Multiple dates per booking
       createdAt: booking.createdAt?.toISOString() || '',
       updatedAt: booking.updatedAt?.toISOString() || ''
     }))
@@ -148,17 +202,18 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/bookings - Create a new booking
+// POST /api/bookings - Create a new booking (or multiple bookings for multiple dates)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const {
       userId,
       selectedCartId,
-      bookingDate,
-      startTime,
-      endTime,
-      totalHours,
+      selectedDates, // NEW: Array of BookingDate objects
+      bookingDate, // Legacy: single date for backward compatibility
+      startTime, // Legacy
+      endTime, // Legacy
+      totalHours, // Legacy
       totalAmount,
       cartServiceAmount,
       servicesAmount,
@@ -179,10 +234,30 @@ export async function POST(request: NextRequest) {
       specialNotes,
       selectedItems,
       selectedServices,
-      paymentMethod
+      paymentMethod,
+      paymentStatus,
+      transactionId,
+      paymentSlipUrl,
+      deliveryMethod,
+      shippingAddress,
+      shippingCity,
+      shippingState,
+      shippingZip,
+      shippingAmount
     } = body
     
     const cartId = selectedCartId // Map to expected field name
+
+    // Support both multiple dates and single date (backward compatibility)
+    const datesToBook = selectedDates && selectedDates.length > 0 
+      ? selectedDates 
+      : [{
+          date: bookingDate,
+          startTime,
+          endTime,
+          totalHours,
+          cartCost: cartServiceAmount || 0
+        }]
 
     // Validate required fields
     if (!cartId) {
@@ -199,20 +274,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!bookingDate || !startTime || !endTime) {
+    if (!datesToBook || datesToBook.length === 0) {
       return NextResponse.json(
-        { error: 'Booking date and time are required' },
+        { error: 'At least one booking date is required' },
         { status: 400 }
       )
     }
 
-    // Validate and parse the booking date
-    const parsedBookingDate = new Date(bookingDate)
-    if (isNaN(parsedBookingDate.getTime())) {
+    // Validate payment slip URL for bank transfers
+    if (paymentMethod === 'bank_transfer' && !paymentSlipUrl) {
       return NextResponse.json(
-        { error: 'Invalid booking date provided' },
+        { error: 'Payment slip URL is required for bank transfers' },
         { status: 400 }
       )
+    }
+
+    // Validate all dates
+    for (const dateData of datesToBook) {
+      if (!dateData.date || !dateData.startTime || !dateData.endTime) {
+        return NextResponse.json(
+          { error: 'All booking dates must have date, start time, and end time' },
+          { status: 400 }
+        )
+      }
+
+      const parsedDate = new Date(dateData.date)
+      if (isNaN(parsedDate.getTime())) {
+        return NextResponse.json(
+          { error: `Invalid booking date provided: ${dateData.date}` },
+          { status: 400 }
+        )
+      }
     }
 
     // Validate that the cart exists
@@ -227,58 +319,53 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Start a database transaction
+    // Start a database transaction to create ONE booking with multiple dates
     const booking = await prisma.$transaction(async (tx: any) => {
-      // Check if the cart is available for the requested time slot
-      const existingBooking = await tx.booking.findFirst({
-        where: {
-          cartId,
-          bookingDate: parsedBookingDate,
-          OR: [
-            {
-              AND: [
-                { startTime: { lte: startTime } },
-                { endTime: { gt: startTime } }
-              ]
-            },
-            {
-              AND: [
-                { startTime: { lt: endTime } },
-                { endTime: { gte: endTime } }
-              ]
-            },
-            {
-              AND: [
-                { startTime: { gte: startTime } },
-                { endTime: { lte: endTime } }
-              ]
-            }
-          ],
-          status: {
-            in: ['PENDING', 'CONFIRMED']
-          }
+      // Validate each date entry and check availability
+      for (const dateData of datesToBook) {
+        if (!dateData.date || !dateData.startTime || !dateData.endTime) {
+          throw new Error('All booking dates must have date, start time, and end time')
         }
-      })
 
-      if (existingBooking) {
-        throw new Error('Time slot is already booked')
+        const parsedDate = new Date(dateData.date)
+        if (isNaN(parsedDate.getTime())) {
+          throw new Error(`Invalid booking date provided: ${dateData.date}`)
+        }
+
+        // Check if the cart is available for this specific time slot
+        const existingBookingConflict = await tx.bookingDate.findFirst({
+          where: {
+            date: parsedDate,
+            startTime: dateData.startTime,
+            endTime: dateData.endTime,
+            booking: {
+              cartId: cartId,
+              status: {
+                in: ['PENDING', 'CONFIRMED']
+              }
+            }
+          }
+        })
+
+        if (existingBookingConflict) {
+          throw new Error(`Time slot is already booked for ${dateData.date} ${dateData.startTime}-${dateData.endTime}`)
+        }
       }
 
-      // Create the booking (without userId since users are not managed)
+      // Create the main booking record
       const newBooking = await tx.booking.create({
         data: {
-          cart: {
-            connect: { id: cartId }
-          },
-          bookingDate: parsedBookingDate,
-          startTime,
-          endTime,
-          totalHours,
+          userId,
+          cartId,
           totalAmount,
-          cartServiceAmount: cartServiceAmount || 0,
-          servicesAmount: servicesAmount || 0,
-          foodAmount: foodAmount || 0,
-          isCustomTiming: isCustomTiming ?? true,
+          status: paymentMethod === 'reservation' ? 'PENDING' : 'PENDING',
+          paymentStatus: paymentStatus || 'PENDING',
+          paymentMethod,
+          transactionId,
+          cartServiceAmount,
+          servicesAmount,
+          foodAmount,
+          isCustomTiming,
           timeSlotType,
           customerFirstName,
           customerLastName,
@@ -292,13 +379,40 @@ export async function POST(request: NextRequest) {
           eventType,
           guestCount,
           specialNotes,
-          paymentMethod,
-          status: 'PENDING',
-          paymentStatus: paymentMethod === 'cash' ? 'PENDING' : 'PENDING'
+          deliveryMethod,
+          shippingAddress,
+          shippingCity,
+          shippingState,
+          shippingZip,
+          shippingAmount,
+          // For backward compatibility, set legacy fields from the first selected date
+          bookingDate: datesToBook[0] ? new Date(datesToBook[0].date) : null,
+          startTime: datesToBook[0] ? datesToBook[0].startTime : null,
+          endTime: datesToBook[0] ? datesToBook[0].endTime : null,
+          totalHours: datesToBook[0] ? datesToBook[0].totalHours : null,
         }
       })
 
-      // Create booking items
+      // Create associated BookingDate records
+      const createdBookingDates = []
+      for (const dateData of datesToBook) {
+        const parsedBookingDate = new Date(dateData.date)
+        
+        const newBookingDate = await tx.bookingDate.create({
+          data: {
+            bookingId: newBooking.id,
+            date: parsedBookingDate,
+            startTime: dateData.startTime,
+            endTime: dateData.endTime,
+            totalHours: dateData.totalHours,
+            cartCost: dateData.cartCost,
+            isAvailable: dateData.isAvailable
+          }
+        })
+        createdBookingDates.push(newBookingDate)
+      }
+
+      // Create booking items (these are for the entire booking, not per date)
       if (selectedItems && selectedItems.length > 0) {
         await tx.bookingItem.createMany({
           data: selectedItems.map((item: any) => ({
@@ -310,17 +424,30 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      // Create booking services
+      // Create booking services (these are for the entire booking, not per date)
       if (selectedServices && selectedServices.length > 0) {
         await tx.bookingService.createMany({
           data: selectedServices.map((service: any) => ({
             bookingId: newBooking.id,
             serviceId: service.serviceId,
             quantity: service.quantity,
-            hours: 1, // Default to 1 hour since we're not using hour-based pricing
-            pricePerHour: service.price, // Store the service price
-            totalPrice: service.quantity * service.price
+            hours: service.hours,
+            pricePerHour: service.pricePerHour
           }))
+        })
+      }
+
+      // Create payment slip record if URL is provided (for bank transfers)
+      if (paymentSlipUrl && paymentMethod === 'bank_transfer') {
+        await (tx as any).paymentSlip.create({
+          data: {
+            bookingId: newBooking.id,
+            fileName: 'Payment Receipt Link',
+            filePath: paymentSlipUrl,
+            fileSize: 0,
+            mimeType: 'application/url',
+            status: 'PENDING'
+          }
         })
       }
 
@@ -330,13 +457,17 @@ export async function POST(request: NextRequest) {
     // TODO: Send confirmation email
     // TODO: Process payment if not cash
 
-    return NextResponse.json(booking, { status: 201 })
+    return NextResponse.json({
+      success: true,
+      booking,
+      message: `Successfully created booking for ${datesToBook.length} date${datesToBook.length !== 1 ? 's' : ''}`
+    }, { status: 201 })
   } catch (error) {
     console.error('Error creating booking:', error)
     
-    if (error instanceof Error && error.message === 'Time slot is already booked') {
+    if (error instanceof Error && (error.message === 'Time slot is already booked' || error.message.includes('Time slot is already booked for'))) {
       return NextResponse.json(
-        { error: 'The selected time slot is no longer available' },
+        { error: error.message },
         { status: 409 }
       )
     }

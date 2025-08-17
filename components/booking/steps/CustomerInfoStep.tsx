@@ -28,7 +28,7 @@ export default function CustomerInfoStep({ formData, updateFormData, onNext, onP
     customerCity: formData.customerCity || '',
     customerState: formData.customerState || '',
     customerZip: formData.customerZip || '',
-    customerCountry: formData.customerCountry || 'United States',
+    customerCountry: formData.customerCountry || 'Greece',
     eventType: formData.eventType || '',
     guestCount: formData.guestCount?.toString() || '1',
     specialNotes: formData.specialNotes || ''
@@ -221,14 +221,14 @@ export default function CustomerInfoStep({ formData, updateFormData, onNext, onP
                     type="text"
                     value={customerInfo.customerFirstName}
                     onChange={(e) => {
-                      const nameValue = e.target.value.replace(/[^a-zA-Z\s\-']/g, '')
+                      const nameValue = e.target.value.replace(/[^a-zA-ZΑ-Ωα-ωάέήίόύώ\s\-']/g, '')
                       handleInputChange('customerFirstName', nameValue)
                     }}
                     error={errors.customerFirstName}
                     required
                     placeholder={t('placeholder_first_name')}
                     autoComplete="given-name"
-                    pattern="[a-zA-Z\s\-']{1,50}"
+                    pattern="[a-zA-ZΑ-Ωα-ωάέήίόύώ\s\-']{1,50}"
                     title={t('validation_first_name')}
                     className="text-[1.6vh] lg:text-[0.8vw]"
                   />
@@ -242,14 +242,14 @@ export default function CustomerInfoStep({ formData, updateFormData, onNext, onP
                     type="text"
                     value={customerInfo.customerLastName}
                     onChange={(e) => {
-                      const nameValue = e.target.value.replace(/[^a-zA-Z\s\-']/g, '')
+                      const nameValue = e.target.value.replace(/[^a-zA-ZΑ-Ωα-ωάέήίόύώ\s\-']/g, '')
                       handleInputChange('customerLastName', nameValue)
                     }}
                     error={errors.customerLastName}
                     required
                     placeholder={t('placeholder_last_name')}
                     autoComplete="family-name"
-                    pattern="[a-zA-Z\s\-']{1,50}"
+                    pattern="[a-zA-ZΑ-Ωα-ωάέήίόύώ\s\-']{1,50}"
                     title={t('validation_last_name')}
                     className="text-[1.6vh] lg:text-[0.8vw]"
                   />
@@ -378,13 +378,38 @@ export default function CustomerInfoStep({ formData, updateFormData, onNext, onP
                   required
                   className="text-[1.6vh] lg:text-[0.8vw]"
                     options={[
-                      { value: t('country_united_states') || 'United States', label: t('country_united_states') || 'United States' },
-                      { value: t('country_canada') || 'Canada', label: t('country_canada') || 'Canada' },
-                      { value: t('country_united_kingdom') || 'United Kingdom', label: t('country_united_kingdom') || 'United Kingdom' },
-                      { value: t('country_australia') || 'Australia', label: t('country_australia') || 'Australia' },
-                      { value: t('country_germany') || 'Germany', label: t('country_germany') || 'Germany' },
-                      { value: t('country_france') || 'France', label: t('country_france') || 'France' },
-                      { value: t('other') || 'Other', label: t('other') || 'Other' }
+                      { value: 'Greece', label: 'Greece / Ελλάδα' },
+                      { value: 'United States', label: 'United States' },
+                      { value: 'Canada', label: 'Canada' },
+                      { value: 'United Kingdom', label: 'United Kingdom' },
+                      { value: 'Germany', label: 'Germany' },
+                      { value: 'France', label: 'France' },
+                      { value: 'Italy', label: 'Italy' },
+                      { value: 'Spain', label: 'Spain' },
+                      { value: 'Netherlands', label: 'Netherlands' },
+                      { value: 'Belgium', label: 'Belgium' },
+                      { value: 'Switzerland', label: 'Switzerland' },
+                      { value: 'Austria', label: 'Austria' },
+                      { value: 'Portugal', label: 'Portugal' },
+                      { value: 'Ireland', label: 'Ireland' },
+                      { value: 'Denmark', label: 'Denmark' },
+                      { value: 'Sweden', label: 'Sweden' },
+                      { value: 'Norway', label: 'Norway' },
+                      { value: 'Finland', label: 'Finland' },
+                      { value: 'Poland', label: 'Poland' },
+                      { value: 'Czech Republic', label: 'Czech Republic' },
+                      { value: 'Hungary', label: 'Hungary' },
+                      { value: 'Croatia', label: 'Croatia' },
+                      { value: 'Slovenia', label: 'Slovenia' },
+                      { value: 'Bulgaria', label: 'Bulgaria' },
+                      { value: 'Romania', label: 'Romania' },
+                      { value: 'Cyprus', label: 'Cyprus' },
+                      { value: 'Malta', label: 'Malta' },
+                      { value: 'Australia', label: 'Australia' },
+                      { value: 'New Zealand', label: 'New Zealand' },
+                      { value: 'Japan', label: 'Japan' },
+                      { value: 'South Korea', label: 'South Korea' },
+                      { value: 'Other', label: 'Other' }
                     ]}
                 />
                       </div>

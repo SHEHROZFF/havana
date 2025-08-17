@@ -87,6 +87,16 @@ export interface BookingService {
   totalAmount: number
 }
 
+export interface BookingDate {
+  date: string
+  startTime: string
+  endTime: string
+  totalHours: number
+  cartCost: number
+  isAvailable: boolean
+  conflictingBooking?: any
+}
+
 export interface BookingFormData {
   // Step 1: Cart Selection
   selectedCartId: string
@@ -108,6 +118,7 @@ export interface BookingFormData {
   }[]
   
   // Step 3: Timing (ENHANCED - Now Dynamic)
+  selectedDates: BookingDate[]
   bookingDate: string
   startTime: string
   endTime: string
@@ -143,6 +154,7 @@ export interface BookingFormData {
   servicesAmount: number
   foodAmount: number
   paymentMethod: string
+  paymentSlipUrl?: string // Payment slip URL for bank transfers
 }
 
 export interface TimeSlot {

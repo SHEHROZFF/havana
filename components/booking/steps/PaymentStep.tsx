@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { BookingFormData } from '@/types/booking'
 import Button from '@/components/ui/Button'
 import { clsx } from 'clsx'
 import { useCreateBookingMutation } from '../../../lib/api/bookingsApi'
-import { DollarSign, CheckCircle, Calendar, Users, Clock, Receipt, Shield, Truck, MapPin } from 'lucide-react'
+import { DollarSign, CheckCircle, Calendar, Users, Clock, Receipt, Shield, Truck, MapPin, CreditCard, Building2, BookmarkCheck, Upload, FileText, Check, X } from 'lucide-react'
 import PaymentSkeleton from '@/components/ui/skeletons/PaymentSkeleton'
 import { PayPalButtons, PayPalScriptProvider } from '@paypal/react-paypal-js'
 import { useI18n } from '@/lib/i18n/context'
@@ -20,9 +20,32 @@ interface PaymentStepProps {
 export default function PaymentStep({ formData, updateFormData, onPrevious, onComplete }: PaymentStepProps) {
   const { t } = useI18n()
   const [isProcessing, setIsProcessing] = useState(false)
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'paypal' | 'bank_transfer' | 'reservation'>('paypal')
+  const [bankConfig, setBankConfig] = useState<any>(null)
+  const [paymentSlipUrl, setPaymentSlipUrl] = useState<string>('')
+  const [urlStatus, setUrlStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
 
   // RTK Query mutation
   const [createBooking, { isLoading: creating }] = useCreateBookingMutation()
+
+  // Fetch bank configuration
+  useEffect(() => {
+    const fetchBankConfig = async () => {
+      try {
+        const response = await fetch('/api/admin/bank-config')
+        const data = await response.json()
+        if (data.success) {
+          setBankConfig(data.bankConfig)
+        }
+      } catch (error) {
+        console.error('Error fetching bank config:', error)
+      }
+    }
+    
+    if (selectedPaymentMethod === 'bank_transfer') {
+      fetchBankConfig()
+    }
+  }, [selectedPaymentMethod])
 
   // PayPal configuration (fallback to hardcoded LIVE client ID if env is missing)
   const PAYPAL_CLIENT_ID_FALLBACK = 'AaAvl-glJBrSlcZRjsc14h8MTLK03fxDnhTQlE1_gW-TrMyFbmsHB3d3JBQP3j411BVIju9nK8zcn3hA'
@@ -54,7 +77,7 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
       const data = await response.json()
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create PayPal order')
+        throw new Error(data.error || t('failed_to_create_paypal_order'))
       }
 
       return data.orderID
@@ -79,7 +102,10 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
         selectedItems: formData.selectedItems || [],
         selectedServices: formData.selectedServices || [],
         
-        // Timing
+        // Multiple Dates
+        selectedDates: formData.selectedDates || [],
+        
+        // Timing (legacy compatibility)
         bookingDate: formData.bookingDate!,
         startTime: formData.startTime!,
         endTime: formData.endTime!,
@@ -177,12 +203,12 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
     setIsProcessing(false)
   }
 
-  // Fallback simulation payment for when PayPal credentials are not set
-  const handleSimulationPayment = async () => {
+  // Handle bank transfer booking creation
+  const handleBankTransferBooking = async () => {
     setIsProcessing(true)
 
     try {
-      // Create the booking data
+      // Create the booking first
       const finalFormData: BookingFormData = {
         // Cart Selection
         selectedCartId: formData.selectedCartId!,
@@ -191,7 +217,10 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
         selectedItems: formData.selectedItems || [],
         selectedServices: formData.selectedServices || [],
         
-        // Timing
+        // Multiple Dates
+        selectedDates: formData.selectedDates || [],
+        
+        // Timing (legacy compatibility)
         bookingDate: formData.bookingDate!,
         startTime: formData.startTime!,
         endTime: formData.endTime!,
@@ -222,7 +251,8 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
         shippingAmount: formData.shippingAmount || 0,
         
         // Payment
-        paymentMethod: 'simulation',
+        paymentMethod: 'bank_transfer',
+        paymentSlipUrl: paymentSlipUrl, // Include payment slip URL in booking data
         totalAmount: total,
         cartServiceAmount: formData.cartServiceAmount || 0,
         servicesAmount: formData.servicesAmount || 0,
@@ -231,36 +261,105 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
 
       const booking = await createBooking(finalFormData).unwrap()
 
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      updateFormData(finalFormData)
       
-      const confirmPayment = confirm(
-        `${t('payment_simulation_title')}\n\n` +
-        `${t('amount_paid_label')}: $${total.toFixed(2)}\n` +
-        `${t('booking_id_label')}: ${booking.id}\n\n` +
-        `${t('click_ok_to_simulate_success')}\n` +
-        `${t('click_cancel_to_simulate_failure')}`
+      alert(
+        `Booking Created Successfully!\n\n` +
+        `${t('booking_id_label')}: ${booking.id}\n` +
+        `${t('total_amount')}: €${total.toFixed(2)}\n` +
+        `${t('payment_method_label')}: Bank Transfer\n\n` +
+        `Payment slip URL saved successfully!\nAdmin will verify your payment.\n\n` +
+        `${t('confirmation_email_sent').replace('{email}', formData.customerEmail || '')}\n\n` +
+        `${t('thank_you_booking')}`
       )
+      
+      onComplete()
+    } catch (error) {
+      console.error('Bank transfer booking failed:', error)
+      setUrlStatus('error')
+      alert(
+        `Booking Failed\n\n` +
+        `${error instanceof Error ? error.message : 'Unknown error occurred'}\n\n` +
+        `Please try again or contact support`
+      )
+    } finally {
+      setIsProcessing(false)
+    }
+  }
 
-      if (confirmPayment) {
-        updateFormData(finalFormData)
+  // Handle reservation without payment
+  const handleReservationBooking = async () => {
+    setIsProcessing(true)
+
+    try {
+      const finalFormData: BookingFormData = {
+        // Cart Selection
+        selectedCartId: formData.selectedCartId!,
+        
+        // Food & Services
+        selectedItems: formData.selectedItems || [],
+        selectedServices: formData.selectedServices || [],
+        
+        // Multiple Dates
+        selectedDates: formData.selectedDates || [],
+        
+        // Timing (legacy compatibility)
+        bookingDate: formData.bookingDate!,
+        startTime: formData.startTime!,
+        endTime: formData.endTime!,
+        totalHours: formData.totalHours!,
+        isCustomTiming: formData.isCustomTiming || false,
+        timeSlotType: formData.timeSlotType,
+        
+        // Customer Info
+        customerFirstName: formData.customerFirstName!,
+        customerLastName: formData.customerLastName!,
+        customerEmail: formData.customerEmail!,
+        customerPhone: formData.customerPhone!,
+        customerAddress: formData.customerAddress!,
+        customerCity: formData.customerCity!,
+        customerState: formData.customerState!,
+        customerZip: formData.customerZip!,
+        customerCountry: formData.customerCountry!,
+        eventType: formData.eventType!,
+        guestCount: formData.guestCount!,
+        specialNotes: formData.specialNotes,
+        
+        // Delivery
+        deliveryMethod: formData.deliveryMethod || 'pickup',
+        shippingAddress: formData.shippingAddress,
+        shippingCity: formData.shippingCity,
+        shippingState: formData.shippingState,
+        shippingZip: formData.shippingZip,
+        shippingAmount: formData.shippingAmount || 0,
+        
+        // Payment
+        paymentMethod: 'reservation',
+        totalAmount: total,
+        cartServiceAmount: formData.cartServiceAmount || 0,
+        servicesAmount: formData.servicesAmount || 0,
+        foodAmount: formData.selectedItems?.reduce((sum, item) => sum + item.price, 0) || 0
+      }
+
+      const booking = await createBooking(finalFormData).unwrap()
+
+      updateFormData(finalFormData)
         
         alert(
-          `${t('payment_simulation_success_title')}\n\n` +
+        `Reservation Created Successfully!\n\n` +
           `${t('booking_id_label')}: ${booking.id}\n` +
-          `${t('amount_paid_label')}: $${total.toFixed(2)}\n` +
-          `${t('payment_method_label')}: ${t('payment_method_simulation')}\n\n` +
+        `${t('total_amount')}: €${total.toFixed(2)}\n` +
+        `${t('payment_method_label')}: Reservation (No Payment)\n\n` +
+        `Your reservation has been confirmed. Payment can be made later.\n\n` +
           `${t('confirmation_email_sent').replace('{email}', formData.customerEmail || '')}\n\n` +
           `${t('thank_you_booking')}`
         )
+      
       onComplete()
-      } else {
-        throw new Error(t('payment_cancelled_message'))
-      }
     } catch (error) {
-      console.error('Payment simulation failed:', error)
+      console.error('Reservation booking failed:', error)
       alert(
-        `${t('payment_simulation_failed_title')}\n\n` +
+        `Booking Failed\n\n` +
         `${error instanceof Error ? error.message : t('unknown_error_occurred')}\n\n` +
         `${t('try_again_or_contact_support')}`
       )
@@ -269,18 +368,41 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
     }
   }
 
-  // Calculate order totals (NO TAX)
+  // Handle URL input for bank transfer slip
+  const handleUrlChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setPaymentSlipUrl(event.target.value)
+    setUrlStatus('idle')
+  }
+
+  const validateUrl = (url: string) => {
+    try {
+      new URL(url)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // Calculate order totals (NO TAX) - Supporting multiple dates
   const calculateTotals = useMemo(() => {
     const foodTotal = formData.selectedItems?.reduce((sum, item) => sum + (item.quantity * item.price), 0) || 0
     const servicesTotal = formData.selectedServices?.reduce((sum, service) => sum + (service.quantity * service.price), 0) || 0
-    const cartTotal = formData.cartServiceAmount || 0
+    
+    // Calculate cart total from multiple dates or single date
+    const cartTotal = formData.selectedDates && formData.selectedDates.length > 0
+      ? formData.selectedDates.reduce((sum, date) => sum + date.cartCost, 0)
+      : (formData.cartServiceAmount || 0)
+    
     const shippingTotal = formData.shippingAmount || 0
     const total = foodTotal + servicesTotal + cartTotal + shippingTotal
     
-    return { foodTotal, servicesTotal, cartTotal, shippingTotal, total }
-  }, [formData.selectedItems, formData.selectedServices, formData.cartServiceAmount, formData.shippingAmount])
+    const daysCount = formData.selectedDates?.length || (cartTotal > 0 ? 1 : 0)
+    const totalHours = formData.selectedDates?.reduce((sum, date) => sum + date.totalHours, 0) || formData.totalHours || 0
 
-  const { foodTotal, servicesTotal, cartTotal, shippingTotal, total } = calculateTotals
+    return { foodTotal, servicesTotal, cartTotal, shippingTotal, total, daysCount, totalHours }
+  }, [formData.selectedItems, formData.selectedServices, formData.selectedDates, formData.cartServiceAmount, formData.shippingAmount, formData.totalHours])
+
+  const { foodTotal, servicesTotal, cartTotal, shippingTotal, total, daysCount, totalHours } = calculateTotals
 
   // Show loading skeleton if data is still loading
   if (creating) {
@@ -313,6 +435,30 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
             {/* Booking Details */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-[2vh] lg:gap-[1vw]">
               <div className="space-y-[1.5vh] lg:space-y-[0.75vw]">
+                {daysCount > 1 ? (
+                  <>
+                    <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw]">
+                      <Calendar className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] text-teal-400" />
+                      <span className="text-[1.6vh] lg:text-[0.8vw] text-gray-300">
+                        {daysCount} {t('days_booked')}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw]">
+                      <Clock className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] text-teal-400" />
+                      <span className="text-[1.6vh] lg:text-[0.8vw] text-gray-300">
+                        {t('total')}: {totalHours} {t('hours')}
+                      </span>
+                    </div>
+                    <div className="text-[1.3vh] lg:text-[0.65vw] text-gray-400 mt-[1vh] lg:mt-[0.5vw]">
+                      {formData.selectedDates?.map((date, index) => (
+                        <div key={index} className="mb-[0.5vh] lg:mb-[0.25vw]">
+                          {new Date(date.date).toLocaleDateString()}: {date.startTime} - {date.endTime} ({date.totalHours}h)
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
                     <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw]">
                   <Calendar className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] text-teal-400" />
                   <span className="text-[1.6vh] lg:text-[0.8vw] text-gray-300">
@@ -325,6 +471,8 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
                     {formData.startTime} - {formData.endTime} ({formData.totalHours}h)
                   </span>
                     </div>
+                  </>
+                )}
                 <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw]">
                   <Users className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] text-teal-400" />
                   <span className="text-[1.6vh] lg:text-[0.8vw] text-gray-300">
@@ -403,21 +551,75 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
         </div>
       </div>
 
-      {/* PayPal Payment Section */}
+      {/* Payment Method Selection */}
       <div className="max-w-[100vh] lg:max-w-[50vw] mx-auto">
         <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl p-[3vh] lg:p-[1.5vw] mx-[2vh] lg:mx-[1vw] border border-slate-600/50">
           {/* Payment Header */}
           <div className="flex items-center space-x-[1.5vh] lg:space-x-[0.75vw] mb-[3vh] lg:mb-[1.5vw]">
             <Shield className="w-[2.5vh] h-[2.5vh] lg:w-[1.25vw] lg:h-[1.25vw] text-teal-400" />
             <div>
-                      <h3 className="text-[2.5vh] lg:text-[1.25vw] font-semibold text-white">{t('secure_payment')}</h3>
-        <p className="text-[1.4vh] lg:text-[0.7vw] text-gray-400">{t('protected_by_paypal')}</p>
+              <h3 className="text-[2.5vh] lg:text-[1.25vw] font-semibold text-white">{t('choose_payment_method')}</h3>
+              <p className="text-[1.4vh] lg:text-[0.7vw] text-gray-400">{t('select_preferred_payment_option')}</p>
             </div>
           </div>
 
-          {/* PayPal Payment Button */}
-          <div className="text-center space-y-[2vh] lg:space-y-[1vw]">
-            {/* PayPal Info */}
+          {/* Payment Method Options */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-[2vh] lg:gap-[1vw] mb-[3vh] lg:mb-[1.5vw]">
+            {/* PayPal Option */}
+            <button
+              onClick={() => setSelectedPaymentMethod('paypal')}
+              className={clsx(
+                'p-[2vh] lg:p-[1vw] rounded-lg border-2 transition-all duration-300 text-center',
+                selectedPaymentMethod === 'paypal'
+                  ? 'border-blue-500 bg-blue-500/20 text-white'
+                  : 'border-slate-600 bg-slate-700 text-gray-300 hover:border-slate-500'
+              )}
+            >
+              <CreditCard className="w-[3vh] h-[3vh] lg:w-[1.5vw] lg:h-[1.5vw] mx-auto mb-[1vh] lg:mb-[0.5vw] text-blue-400" />
+              <h4 className="text-[1.6vh] lg:text-[0.8vw] font-semibold mb-[0.5vh] lg:mb-[0.25vw]">PayPal</h4>
+              <p className="text-[1.2vh] lg:text-[0.6vw] text-gray-400">{t('instant_payment_paypal_card')}</p>
+            </button>
+
+            {/* Bank Transfer Option */}
+            <button
+              onClick={() => setSelectedPaymentMethod('bank_transfer')}
+              className={clsx(
+                'p-[2vh] lg:p-[1vw] rounded-lg border-2 transition-all duration-300 text-center',
+                selectedPaymentMethod === 'bank_transfer'
+                  ? 'border-green-500 bg-green-500/20 text-white'
+                  : 'border-slate-600 bg-slate-700 text-gray-300 hover:border-slate-500'
+              )}
+            >
+              <Building2 className="w-[3vh] h-[3vh] lg:w-[1.5vw] lg:h-[1.5vw] mx-auto mb-[1vh] lg:mb-[0.5vw] text-green-400" />
+              <h4 className="text-[1.6vh] lg:text-[0.8vw] font-semibold mb-[0.5vh] lg:mb-[0.25vw]">{t('bank_transfer')}</h4>
+              <p className="text-[1.2vh] lg:text-[0.6vw] text-gray-400">{t('transfer_bank_upload_receipt')}</p>
+            </button>
+
+            {/* Reservation Option */}
+            <button
+              onClick={() => setSelectedPaymentMethod('reservation')}
+              className={clsx(
+                'p-[2vh] lg:p-[1vw] rounded-lg border-2 transition-all duration-300 text-center',
+                selectedPaymentMethod === 'reservation'
+                  ? 'border-orange-500 bg-orange-500/20 text-white'
+                  : 'border-slate-600 bg-slate-700 text-gray-300 hover:border-slate-500'
+              )}
+            >
+              <BookmarkCheck className="w-[3vh] h-[3vh] lg:w-[1.5vw] lg:h-[1.5vw] mx-auto mb-[1vh] lg:mb-[0.5vw] text-orange-400" />
+              <h4 className="text-[1.6vh] lg:text-[0.8vw] font-semibold mb-[0.5vh] lg:mb-[0.25vw]">{t('reservation')}</h4>
+              <p className="text-[1.2vh] lg:text-[0.6vw] text-gray-400">{t('reserve_without_payment')}</p>
+            </button>
+          </div>
+
+          {/* Total Display */}
+          <div className="bg-slate-700/50 rounded-lg p-[2vh] lg:p-[1vw] border border-slate-600 mb-[3vh] lg:mb-[1.5vw]">
+            <div className="text-[2vh] lg:text-[1vw] text-gray-300 mb-[0.5vh] lg:mb-[0.25vw]">{t('total_amount')}</div>
+            <div className="text-[3.5vh] lg:text-[1.75vw] font-bold text-white">€{total.toFixed(2)}</div>
+          </div>
+
+          {/* Payment Method Content */}
+          {selectedPaymentMethod === 'paypal' && (
+            <div className="space-y-[2vh] lg:space-y-[1vw]">
             <div className="bg-blue-600/10 border border-blue-600/30 rounded-lg p-[2vh] lg:p-[1vw]">
               <div className="flex items-center justify-center space-x-[1vh] lg:space-x-[0.5vw] mb-[1vh] lg:mb-[0.5vw]">
                 <svg className="w-[3vh] h-[3vh] lg:w-[1.5vw] lg:h-[1.5vw]" viewBox="0 0 24 24" fill="currentColor">
@@ -425,18 +627,11 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
                 </svg>
                 <span className="text-[1.8vh] lg:text-[0.9vw] font-medium text-blue-400">{t('paypal_secure_payment')}</span>
               </div>
-              <p className="text-[1.4vh] lg:text-[0.7vw] text-gray-300">
+                <p className="text-[1.4vh] lg:text-[0.7vw] text-gray-300 text-center">
                 {t('click_below_to_process_payment')}
               </p>
             </div>
 
-            {/* Total Display */}
-            <div className="bg-slate-700/50 rounded-lg p-[2vh] lg:p-[1vw] border border-slate-600">
-              <div className="text-[2vh] lg:text-[1vw] text-gray-300 mb-[0.5vh] lg:mb-[0.25vw]">{t('total_amount')}</div>
-              <div className="text-[3.5vh] lg:text-[1.75vw] font-bold text-white">€{total.toFixed(2)}</div>
-            </div>
-
-            {/* Payment Buttons */}
             <div className="w-full">
               {isProcessing ? (
                 <div className="bg-gray-600 rounded-lg py-[2vh] lg:py-[1vw] flex items-center justify-center space-x-[1vh] lg:space-x-[0.5vw]">
@@ -453,11 +648,6 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
                       label: 'paypal',
                       height: 50
                     }}
-                    fundingSource={undefined}
-                    // Disable Pay Later and other funding sources; keep PayPal and card
-                    // Note: The PayPal JS SDK honors disableFunding via script options; we pass clientId only,
-                    // so we enforce via allowed funding by not specifying paylater.
-                    // The buttons will show PayPal and Card (if eligible) by default.
                     createOrder={createOrder}
                     onApprove={onApprove}
                     onError={onError}
@@ -466,27 +656,147 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
                   />
                 </PayPalScriptProvider>
               ) : (
-                <div className="space-y-[1vh] lg:space-y-[0.5vw]">
-                  <div className="bg-yellow-600/20 border border-yellow-600/50 rounded-lg p-[1.5vh] lg:p-[0.8vw] mb-[1vh] lg:mb-[0.5vw]">
+                  <div className="bg-yellow-600/20 border border-yellow-600/50 rounded-lg p-[1.5vh] lg:p-[0.8vw]">
                     <p className="text-yellow-300 text-[1.4vh] lg:text-[0.7vw] text-center">
                       {t('paypal_credentials_missing')}
                     </p>
                   </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {selectedPaymentMethod === 'bank_transfer' && (
+            <div className="space-y-[2vh] lg:space-y-[1vw]">
+              {bankConfig ? (
+                <div className="bg-green-600/10 border border-green-600/30 rounded-lg p-[2vh] lg:p-[1vw]">
+                  <h4 className="text-[1.8vh] lg:text-[0.9vw] font-semibold text-green-400 mb-[1vh] lg:mb-[0.5vw]">
+                    {t('bank_transfer_details')}
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-[1vh] lg:gap-[0.5vw] text-[1.4vh] lg:text-[0.7vw]">
+                    <div>
+                      <span className="text-gray-400">{t('bank_name')}:</span>
+                      <p className="text-white font-medium">{bankConfig.bankName}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">{t('account_holder')}:</span>
+                      <p className="text-white font-medium">{bankConfig.accountHolder}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">{t('iban')}:</span>
+                      <p className="text-white font-medium font-mono">{bankConfig.iban}</p>
+                    </div>
+                    {bankConfig.swiftCode && (
+                      <div>
+                        <span className="text-gray-400">{t('swift_code')}:</span>
+                        <p className="text-white font-medium">{bankConfig.swiftCode}</p>
+                      </div>
+                    )}
+                  </div>
+                  {bankConfig.instructions && (
+                    <div className="mt-[1vh] lg:mt-[0.5vw] p-[1vh] lg:p-[0.5vw] bg-slate-600/50 rounded">
+                      <span className="text-gray-400 text-[1.2vh] lg:text-[0.6vw]">{t('instructions')}:</span>
+                      <p className="text-white text-[1.3vh] lg:text-[0.65vw] mt-[0.5vh] lg:mt-[0.25vw]">{bankConfig.instructions}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-red-600/20 border border-red-600/50 rounded-lg p-[2vh] lg:p-[1vw]">
+                  <p className="text-red-300 text-[1.4vh] lg:text-[0.7vw] text-center">
+                    {t('bank_transfer_details_not_configured')}
+                  </p>
+                </div>
+              )}
+
+              {/* Payment Slip URL Section */}
+              <div className="bg-slate-700/50 rounded-lg p-[2vh] lg:p-[1vw] border border-slate-600">
+                <h4 className="text-[1.6vh] lg:text-[0.8vw] font-semibold text-white mb-[1vh] lg:mb-[0.5vw]">
+                  {t('payment_receipt_link')} <span className="text-red-400">*</span>
+                </h4>
+                <div className="space-y-[1vh] lg:space-y-[0.5vw]">
+                  <input
+                    type="url"
+                    value={paymentSlipUrl}
+                    onChange={handleUrlChange}
+                    placeholder={t('payment_receipt_url_placeholder')}
+                    className="w-full p-[1vh] lg:p-[0.5vw] bg-slate-600 border border-slate-500 rounded-lg text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none text-[1.4vh] lg:text-[0.7vw]"
+                  />
+                  
+                  {paymentSlipUrl && validateUrl(paymentSlipUrl) && (
+                    <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw] text-[1.3vh] lg:text-[0.65vw]">
+                      <FileText className="w-[1.5vh] h-[1.5vh] lg:w-[0.75vw] lg:h-[0.75vw] text-green-400" />
+                      <span className="text-green-400">✓ {t('valid_url_provided')}</span>
+                    </div>
+                  )}
+                  
+                  {paymentSlipUrl && !validateUrl(paymentSlipUrl) && (
+                    <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw] text-[1.3vh] lg:text-[0.65vw]">
+                      <span className="text-yellow-400">⚠ {t('please_enter_valid_url')}</span>
+                    </div>
+                  )}
+                  
+                  <p className="text-[1.2vh] lg:text-[0.6vw] text-gray-400">
+                    <span className="text-red-400 font-medium">{t('required')}:</span> {t('upload_receipt_instructions')}
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                onClick={handleBankTransferBooking}
+                disabled={isProcessing || !bankConfig || !paymentSlipUrl || !validateUrl(paymentSlipUrl)}
+                size="lg"
+                className="w-full py-[2vh] lg:py-[1vw] text-[2.2vh] lg:text-[1.1vw] font-bold bg-green-600 hover:bg-green-700 text-white"
+              >
+                <div className="flex items-center justify-center space-x-[1vh] lg:space-x-[0.5vw]">
+                  {isProcessing ? (
+                    <div className="animate-spin rounded-full h-[2vh] w-[2vh] lg:h-[1vw] lg:w-[1vw] border-2 border-white border-t-transparent"></div>
+                  ) : (
+                    <Building2 className="w-[2.2vh] h-[2.2vh] lg:w-[1.1vw] lg:h-[1.1vw]" />
+                  )}
+                  <span>{t('complete_bank_transfer_booking')}</span>
+                </div>
+              </Button>
+            </div>
+          )}
+
+          {selectedPaymentMethod === 'reservation' && (
+            <div className="space-y-[2vh] lg:space-y-[1vw]">
+              <div className="bg-orange-600/10 border border-orange-600/30 rounded-lg p-[2vh] lg:p-[1vw]">
+                <h4 className="text-[1.8vh] lg:text-[0.9vw] font-semibold text-orange-400 mb-[1vh] lg:mb-[0.5vw]">
+                  {t('reservation_without_payment')}
+                </h4>
+                <p className="text-[1.4vh] lg:text-[0.7vw] text-gray-300 mb-[1vh] lg:mb-[0.5vw]">
+                  {t('reserve_booking_pay_later_instructions')}
+                </p>
+                <ul className="text-[1.3vh] lg:text-[0.65vw] text-gray-300 space-y-[0.5vh] lg:space-y-[0.25vw] ml-[2vh] lg:ml-[1vw]">
+                  <li>• {t('contacting_us_directly')}</li>
+                  <li>• {t('bank_transfer_before_event')}</li>
+                  <li>• {t('cash_payment_on_delivery_pickup')}</li>
+                </ul>
+                <div className="mt-[1vh] lg:mt-[0.5vw] p-[1vh] lg:p-[0.5vw] bg-orange-500/20 rounded">
+                  <p className="text-orange-300 text-[1.2vh] lg:text-[0.6vw] font-medium">
+                    ⚠️ {t('reservation_subject_to_confirmation')}
+                  </p>
+                </div>
+              </div>
+
                   <Button
-                    onClick={handleSimulationPayment}
+                onClick={handleReservationBooking}
                     disabled={isProcessing}
                     size="lg"
-                    className="w-full py-[2vh] lg:py-[1vw] text-[2.2vh] lg:text-[1.1vw] font-bold bg-blue-600 hover:bg-blue-700 text-white"
+                className="w-full py-[2vh] lg:py-[1vw] text-[2.2vh] lg:text-[1.1vw] font-bold bg-orange-600 hover:bg-orange-700 text-white"
                   >
                     <div className="flex items-center justify-center space-x-[1vh] lg:space-x-[0.5vw]">
-                      <DollarSign className="w-[2.2vh] h-[2.2vh] lg:w-[1.1vw] lg:h-[1.1vw]" />
-                      <span>{t('simulate_payment_with_amount').replace('${amount}', `$${total.toFixed(2)}`)}</span>
+                  {isProcessing ? (
+                    <div className="animate-spin rounded-full h-[2vh] w-[2vh] lg:h-[1vw] lg:w-[1vw] border-2 border-white border-t-transparent"></div>
+                  ) : (
+                    <BookmarkCheck className="w-[2.2vh] h-[2.2vh] lg:w-[1.1vw] lg:h-[1.1vw]" />
+                  )}
+                  <span>{t('complete_reservation')}</span>
                     </div>
                   </Button>
           </div>
         )}
-            </div>
-          </div>
         </div>
       </div>
 

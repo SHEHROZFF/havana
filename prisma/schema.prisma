@@ -104,21 +104,24 @@ model CartAvailability {
   @@map("cart_availability")
 }
 
-// Main booking model
+// Main booking model - One booking can have multiple dates
 model Booking {
   id          String        @id @default(cuid())
   userId      String?       // Optional since we're not managing users
   cartId      String
-  bookingDate DateTime      @db.Date
-  startTime   String        // "14:00" - Now user customizable
-  endTime     String        // "18:00" - Now user customizable
-  totalHours  Int           // Calculated from custom times
+  
+  // Legacy fields for backward compatibility (will use first BookingDate if available)
+  bookingDate DateTime?     @db.Date
+  startTime   String?       // "14:00" - Now user customizable
+  endTime     String?       // "18:00" - Now user customizable
+  totalHours  Int?          // Calculated from custom times
+  
   totalAmount Float
   status      BookingStatus @default(PENDING)
   
   // Enhanced timing options
   isCustomTiming Boolean @default(true)  // True for custom times, false for preset slots
-  timeSlotType  String?                  // "morning", "afternoon", "evening" for preset slots
+  timeSlotType  String?                  // "morning", "afternoon", "evening" for preset slots, or "multi-day-24h"
   
   // Enhanced pricing breakdown
   cartServiceAmount Float @default(0)    // Amount for cart rental
@@ -159,8 +162,29 @@ model Booking {
   cart         FoodCart      @relation(fields: [cartId], references: [id])
   bookingItems BookingItem[]
   bookingServices BookingService[]
+  bookingDates BookingDate[] // NEW: Multiple dates per booking
+  paymentSlip  PaymentSlip?
 
   @@map("bookings")
+}
+
+// Booking dates - Multiple dates can belong to one booking
+model BookingDate {
+  id          String   @id @default(cuid())
+  bookingId   String
+  date        DateTime @db.Date
+  startTime   String   // "14:00"
+  endTime     String   // "18:00" 
+  totalHours  Int      // Hours for this specific date
+  cartCost    Float    // Cost for this specific date
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, date, startTime]) // Prevent duplicate time slots for same booking
+  @@map("booking_dates")
 }
 
 // Items ordered in each booking
@@ -225,6 +249,12 @@ enum ServiceCategory {
   SPECIAL     // Special services
 }
 
+enum SlipStatus {
+  PENDING     // Uploaded, waiting for verification
+  VERIFIED    // Admin verified the payment
+  REJECTED    // Admin rejected the payment
+}
+
 // Payment configuration stored by admin
 model PaymentConfig {
   id          String   @id @default(cuid())
@@ -235,4 +265,40 @@ model PaymentConfig {
   createdAt   DateTime @default(now())
 
   @@map("payment_config")
+}
+
+// Bank transfer configuration
+model BankConfig {
+  id              String   @id @default(cuid())
+  bankName        String
+  accountHolder   String
+  iban            String
+  swiftCode       String?
+  accountNumber   String?
+  bankAddress     String?
+  instructions    String?  @db.Text
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("bank_config")
+}
+
+// Payment slip uploads for bank transfers
+model PaymentSlip {
+  id            String        @id @default(cuid())
+  bookingId     String        @unique
+  fileName      String
+  filePath      String
+  fileSize      Int
+  mimeType      String
+  uploadedAt    DateTime      @default(now())
+  verifiedAt    DateTime?
+  verifiedBy    String?       // Admin user ID who verified
+  status        SlipStatus    @default(PENDING)
+  adminNotes    String?       @db.Text
+  
+  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("payment_slips")
 }
