@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = "mysql://uxmhfry56fssu68k:eitFxmpik1Bw6HguwFwX@b5uqwyttsseik8ffzg6j-mysql.services.clever-cloud.com:3306/b5uqwyttsseik8ffzg6j"
+  url      = "mysql://ugebudsd1blyln6l:r0NQorcHb0fBfZjS71Jf@b0rnpxkodh8gpcyullci-mysql.services.clever-cloud.com:3306/b0rnpxkodh8gpcyullci"
 }
 
 // User model for authentication
