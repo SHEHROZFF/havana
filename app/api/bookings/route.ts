@@ -334,18 +334,18 @@ export async function POST(request: NextRequest) {
 
         // Check if the cart is available for this specific time slot
         const existingBookingConflict = await tx.bookingDate.findFirst({
-          where: {
+        where: {
             date: parsedDate,
             startTime: dateData.startTime,
             endTime: dateData.endTime,
             booking: {
               cartId: cartId,
-              status: {
-                in: ['PENDING', 'CONFIRMED']
+          status: {
+            in: ['PENDING', 'CONFIRMED']
               }
-            }
           }
-        })
+        }
+      })
 
         if (existingBookingConflict) {
           throw new Error(`Time slot is already booked for ${dateData.date} ${dateData.startTime}-${dateData.endTime}`)

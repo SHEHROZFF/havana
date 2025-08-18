@@ -21,31 +21,40 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
   const { t } = useI18n()
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'paypal' | 'bank_transfer' | 'reservation'>('paypal')
-  const [bankConfig, setBankConfig] = useState<any>(null)
+  const [bankConfigs, setBankConfigs] = useState<any[]>([])
+  const [selectedBankId, setSelectedBankId] = useState<string>('')
   const [paymentSlipUrl, setPaymentSlipUrl] = useState<string>('')
   const [urlStatus, setUrlStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
 
   // RTK Query mutation
   const [createBooking, { isLoading: creating }] = useCreateBookingMutation()
 
-  // Fetch bank configuration
+  // Fetch bank configurations
   useEffect(() => {
-    const fetchBankConfig = async () => {
+    const fetchBankConfigs = async () => {
       try {
         const response = await fetch('/api/admin/bank-config')
         const data = await response.json()
         if (data.success) {
-          setBankConfig(data.bankConfig)
+          const activeBanks = data.bankConfigs?.filter((bank: any) => bank.isActive) || []
+          setBankConfigs(activeBanks)
+          // Auto-select first bank if only one available
+          if (activeBanks.length === 1) {
+            setSelectedBankId(activeBanks[0].id)
+          }
         }
       } catch (error) {
-        console.error('Error fetching bank config:', error)
+        console.error('Error fetching bank configs:', error)
       }
     }
     
     if (selectedPaymentMethod === 'bank_transfer') {
-      fetchBankConfig()
+      fetchBankConfigs()
     }
   }, [selectedPaymentMethod])
+
+  // Get currently selected bank
+  const selectedBank = bankConfigs.find(bank => bank.id === selectedBankId)
 
   // PayPal configuration (fallback to hardcoded LIVE client ID if env is missing)
   const PAYPAL_CLIENT_ID_FALLBACK = 'AaAvl-glJBrSlcZRjsc14h8MTLK03fxDnhTQlE1_gW-TrMyFbmsHB3d3JBQP3j411BVIju9nK8zcn3hA'
@@ -343,7 +352,7 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
 
       const booking = await createBooking(finalFormData).unwrap()
 
-      updateFormData(finalFormData)
+        updateFormData(finalFormData)
         
         alert(
         `Reservation Created Successfully!\n\n` +
@@ -668,38 +677,85 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
 
           {selectedPaymentMethod === 'bank_transfer' && (
             <div className="space-y-[2vh] lg:space-y-[1vw]">
-              {bankConfig ? (
-                <div className="bg-green-600/10 border border-green-600/30 rounded-lg p-[2vh] lg:p-[1vw]">
-                  <h4 className="text-[1.8vh] lg:text-[0.9vw] font-semibold text-green-400 mb-[1vh] lg:mb-[0.5vw]">
-                    {t('bank_transfer_details')}
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-[1vh] lg:gap-[0.5vw] text-[1.4vh] lg:text-[0.7vw]">
-                    <div>
-                      <span className="text-gray-400">{t('bank_name')}:</span>
-                      <p className="text-white font-medium">{bankConfig.bankName}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">{t('account_holder')}:</span>
-                      <p className="text-white font-medium">{bankConfig.accountHolder}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">{t('iban')}:</span>
-                      <p className="text-white font-medium font-mono">{bankConfig.iban}</p>
-                    </div>
-                    {bankConfig.swiftCode && (
-                      <div>
-                        <span className="text-gray-400">{t('swift_code')}:</span>
-                        <p className="text-white font-medium">{bankConfig.swiftCode}</p>
+              {bankConfigs.length > 0 ? (
+                <>
+                  {/* Bank Selection (if multiple banks available) */}
+                  {bankConfigs.length > 1 && (
+                    <div className="bg-blue-600/10 border border-blue-600/30 rounded-lg p-[2vh] lg:p-[1vw]">
+                      <h4 className="text-[1.6vh] lg:text-[0.8vw] font-semibold text-blue-400 mb-[1vh] lg:mb-[0.5vw]">
+                        {t('select_bank_account')}
+                      </h4>
+                      <p className="text-[1.3vh] lg:text-[0.65vw] text-gray-300 mb-[1.5vh] lg:mb-[0.75vw]">
+                        {t('choose_bank_for_transfer')}
+                      </p>
+                      <div className="grid grid-cols-1 gap-[1vh] lg:gap-[0.5vw]">
+                        {bankConfigs.map((bank) => (
+                          <label
+                            key={bank.id}
+                            className={clsx(
+                              'flex items-center p-[1.5vh] lg:p-[0.75vw] rounded-lg border-2 cursor-pointer transition-all duration-300',
+                              selectedBankId === bank.id
+                                ? 'border-blue-500 bg-blue-500/20'
+                                : 'border-slate-600 bg-slate-700/50 hover:border-slate-500'
+                            )}
+                          >
+                            <input
+                              type="radio"
+                              name="selectedBank"
+                              value={bank.id}
+                              checked={selectedBankId === bank.id}
+                              onChange={() => setSelectedBankId(bank.id)}
+                              className="mr-[1vh] lg:mr-[0.5vw] w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw]"
+                            />
+                            <div className="flex-1">
+                              <div className="text-[1.4vh] lg:text-[0.7vw] font-medium text-white">
+                                {bank.bankName}
+                              </div>
+                              <div className="text-[1.2vh] lg:text-[0.6vw] text-gray-400">
+                                {bank.accountHolder} • {bank.iban.slice(-4)}
+                              </div>
+                            </div>
+                          </label>
+                        ))}
                       </div>
-                    )}
-                  </div>
-                  {bankConfig.instructions && (
-                    <div className="mt-[1vh] lg:mt-[0.5vw] p-[1vh] lg:p-[0.5vw] bg-slate-600/50 rounded">
-                      <span className="text-gray-400 text-[1.2vh] lg:text-[0.6vw]">{t('instructions')}:</span>
-                      <p className="text-white text-[1.3vh] lg:text-[0.65vw] mt-[0.5vh] lg:mt-[0.25vw]">{bankConfig.instructions}</p>
                     </div>
                   )}
-                </div>
+
+                  {/* Selected Bank Details */}
+                  {selectedBank && (
+                    <div className="bg-green-600/10 border border-green-600/30 rounded-lg p-[2vh] lg:p-[1vw]">
+                      <h4 className="text-[1.8vh] lg:text-[0.9vw] font-semibold text-green-400 mb-[1vh] lg:mb-[0.5vw]">
+                        {t('bank_transfer_details')}
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-[1vh] lg:gap-[0.5vw] text-[1.4vh] lg:text-[0.7vw]">
+                        <div>
+                          <span className="text-gray-400">{t('bank_name')}:</span>
+                          <p className="text-white font-medium">{selectedBank.bankName}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-400">{t('account_holder')}:</span>
+                          <p className="text-white font-medium">{selectedBank.accountHolder}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-400">{t('iban')}:</span>
+                          <p className="text-white font-medium font-mono">{selectedBank.iban}</p>
+                        </div>
+                        {selectedBank.swiftCode && (
+                          <div>
+                            <span className="text-gray-400">{t('swift_code')}:</span>
+                            <p className="text-white font-medium">{selectedBank.swiftCode}</p>
+                          </div>
+                        )}
+                      </div>
+                      {selectedBank.instructions && (
+                        <div className="mt-[1vh] lg:mt-[0.5vw] p-[1vh] lg:p-[0.5vw] bg-slate-600/50 rounded">
+                          <span className="text-gray-400 text-[1.2vh] lg:text-[0.6vw]">{t('instructions')}:</span>
+                          <p className="text-white text-[1.3vh] lg:text-[0.65vw] mt-[0.5vh] lg:mt-[0.25vw]">{selectedBank.instructions}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="bg-red-600/20 border border-red-600/50 rounded-lg p-[2vh] lg:p-[1vw]">
                   <p className="text-red-300 text-[1.4vh] lg:text-[0.7vw] text-center">
@@ -743,7 +799,7 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
 
               <Button
                 onClick={handleBankTransferBooking}
-                disabled={isProcessing || !bankConfig || !paymentSlipUrl || !validateUrl(paymentSlipUrl)}
+                disabled={isProcessing || !selectedBank || !paymentSlipUrl || !validateUrl(paymentSlipUrl)}
                 size="lg"
                 className="w-full py-[2vh] lg:py-[1vw] text-[2.2vh] lg:text-[1.1vw] font-bold bg-green-600 hover:bg-green-700 text-white"
               >
