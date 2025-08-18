@@ -335,14 +335,14 @@ export default function CartSelectionStep({ formData, updateFormData, onNext }: 
       {/* Next Button */}
       <div className="flex justify-center pt-[2vh] lg:pt-[1vw]">
         <Button
-          size="lg"
+          size="md"
           onClick={handleNext}
           disabled={!selectedCartId}
-          className="px-[6vh] lg:px-[3vw] bg-teal-600 hover:bg-teal-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
+          className="px-[5vh] lg:px-[3vw] bg-teal-600 hover:bg-teal-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
         >
           {selectedCartId ? (
           <div className="flex items-center">
-            <Check className="w-[1.8vh] h-[1.8vh] lg:w-[0.9vw] lg:h-[0.9vw] mr-[0.8vh] lg:mr-[0.4vw]" />
+            <Check className="w-[1.8vh] h-[1.8vh] lg:w-[0.9vw] lg:h-[0.9vw] mr-[0.5vh] lg:mr-[0.25vw]" />
             {t('continue_to_menu')}
           </div>
         ) : (

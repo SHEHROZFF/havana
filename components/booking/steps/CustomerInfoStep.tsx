@@ -649,8 +649,8 @@ export default function CustomerInfoStep({ formData, updateFormData, onNext, onP
         <Button
           variant="outline"
           onClick={onPrevious}
-            size="md"
-            className="px-[3vh] lg:px-[2vw] py-[1vh] lg:py-[0.6vw] text-[1.6vh] lg:text-[0.9vw] font-semibold"
+            size="sm"
+            className="px-[3vh] lg:px-[2vw] py-[0.8vh] lg:py-[0.6vw] text-[1.4vh] lg:text-[0.9vw] font-semibold"
         >
           {t('previous')}
         </Button>
@@ -658,8 +658,8 @@ export default function CustomerInfoStep({ formData, updateFormData, onNext, onP
           {isAllDataComplete ? (
         <Button
           onClick={handleNext}
-              size="md"
-              className="px-[3vh] lg:px-[2vw] py-[1vh] lg:py-[0.6vw] text-[1.6vh] lg:text-[0.9vw] font-semibold"
+              size="sm"
+              className="px-[2vh] lg:px-[2vw] py-[0.8vh] lg:py-[0.6vw] text-[1.4vh] lg:text-[0.9vw] font-semibold"
             >
               <div className="flex items-center">
                 <Check className="w-[1.8vh] h-[1.8vh] lg:w-[0.9vw] lg:h-[0.9vw] mr-[0.8vh] lg:mr-[0.4vw]" />
@@ -669,12 +669,12 @@ export default function CustomerInfoStep({ formData, updateFormData, onNext, onP
           ) : (
             <Button
               variant="outline"
-              size="md"
-              className="px-[3vh] lg:px-[2vw] py-[1vh] lg:py-[0.6vw] text-[1.6vh] lg:text-[0.9vw] font-semibold border-gray-500 text-gray-400 cursor-not-allowed opacity-60"
+              size="sm"
+              className="px-[2vh] lg:px-[2vw] py-[0.8vh] lg:py-[0.6vw] text-[1.4vh] lg:text-[0.9vw] font-semibold border-gray-500 text-gray-400 cursor-not-allowed opacity-60"
               disabled
             >
               <div className="flex items-center">
-                <MessageSquare className="w-[1.8vh] h-[1.8vh] lg:w-[0.9vw] lg:h-[0.9vw] mr-[0.8vh] lg:mr-[0.4vw]" />
+                <MessageSquare className="w-[1.8vh] h-[1.8vh] lg:w-[0.9vw] lg:h-[0.9vw]" />
                 Complete Information
               </div>
         </Button>

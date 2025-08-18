@@ -172,16 +172,16 @@ export default function DeliveryStep({ formData, updateFormData, onNext, onPrevi
       <div className="flex justify-between items-center pt-[2vh] lg:pt-[1vw] border-t border-slate-600">
         <Button
           onClick={onPrevious}
-          variant="ghost"
+          variant="outline"
           size="md"
-          className="px-[4vh] lg:px-[2vw] py-[1.2vh] lg:py-[0.6vw] text-[1.8vh] lg:text-[0.9vw]"
+          className="px-[3vh] lg:px-[2vw] py-[1vh] lg:py-[0.6vw] text-[1.4vh] lg:text-[0.9vw]"
         >
           {t('previous')}
         </Button>
         <Button
           onClick={handleNext}
           size="md"
-          className="px-[4vh] lg:px-[2vw] py-[1.2vh] lg:py-[0.6vw] text-[1.8vh] lg:text-[0.9vw] font-semibold"
+          className="px-[2vh] lg:px-[2vw] py-[1.3vh] lg:py-[0.6vw] text-[1.4vh] lg:text-[0.9vw] font-semibold"
         >
           {t('continue_to_customer_info')}
         </Button>

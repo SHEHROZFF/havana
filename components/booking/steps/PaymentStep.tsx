@@ -800,8 +800,8 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
               <Button
                 onClick={handleBankTransferBooking}
                 disabled={isProcessing || !selectedBank || !paymentSlipUrl || !validateUrl(paymentSlipUrl)}
-                size="lg"
-                className="w-full py-[2vh] lg:py-[1vw] text-[2.2vh] lg:text-[1.1vw] font-bold bg-green-600 hover:bg-green-700 text-white"
+                size="sm"
+                className="w-full py-[2vh] lg:py-[1vw] text-[1.4vh] lg:text-[1.1vw] font-bold bg-green-600 hover:bg-green-700 text-white"
               >
                 <div className="flex items-center justify-center space-x-[1vh] lg:space-x-[0.5vw]">
                   {isProcessing ? (
@@ -839,8 +839,8 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
                   <Button
                 onClick={handleReservationBooking}
                     disabled={isProcessing}
-                    size="lg"
-                className="w-full py-[2vh] lg:py-[1vw] text-[2.2vh] lg:text-[1.1vw] font-bold bg-orange-600 hover:bg-orange-700 text-white"
+                    size="sm"
+                className="w-full py-[2vh] lg:py-[1vw] text-[1.4vh] lg:text-[1.1vw] font-bold bg-orange-600 hover:bg-orange-700 text-white"
                   >
                     <div className="flex items-center justify-center space-x-[1vh] lg:space-x-[0.5vw]">
                   {isProcessing ? (

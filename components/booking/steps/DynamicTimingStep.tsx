@@ -708,8 +708,8 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
         <Button
           onClick={onPrevious}
           variant="outline"
-          size="md"
-          className="px-[4vh] lg:px-[2vw] py-[1.2vh] lg:py-[0.6vw] text-[1.8vh] lg:text-[0.9vw] font-semibold"
+          size="sm"
+          className="px-[2vh] lg:px-[2vw] py-[0vh] lg:py-[0.6vw] text-[1.6vh] lg:text-[0.9vw] font-semibold"
         >
           {t('previous')}
         </Button>
@@ -718,8 +718,8 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
         <Button
           onClick={handleNext}
             disabled={!isValid}
-          size="md"
-          className="px-[4vh] lg:px-[2vw] py-[1.2vh] lg:py-[0.6vw] text-[1.8vh] lg:text-[0.9vw] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+          size="sm"
+          className="px-[2vh] lg:px-[2vw] py-[1.2vh] lg:py-[0.6vw] text-[1.4vh] lg:text-[0.9vw] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
         >
             {selectedDates.length === 0 
               ? t('continue')

@@ -514,7 +514,7 @@ export default function ExtrasStep({ formData, updateFormData, onNext, onPreviou
           variant="outline"
           onClick={onPrevious}
           size="md"
-          className="px-[3vh] lg:px-[2vw] py-[1vh] lg:py-[0.6vw] text-[1.6vh] lg:text-[0.9vw] font-semibold"
+          className="px-[2vh] lg:px-[2vw] py-[1vh] lg:py-[0.6vw] text-[1.3vh] lg:text-[0.9vw] font-semibold"
         >
           {t('previous')}
         </Button>
@@ -523,8 +523,8 @@ export default function ExtrasStep({ formData, updateFormData, onNext, onPreviou
           <Button
             variant="outline"
             onClick={handleSkip}
-            size="md"
-            className="px-[3vh] lg:px-[1.5vw] py-[1.2vh] lg:py-[0.6vw] text-[1.6vh] lg:text-[0.8vw] font-medium flex items-center space-x-[0.5vh] lg:space-x-[0.3vw]"
+            size="sm"
+            className="px-[2vh] lg:px-[1.5vw] py-[1.2vh] lg:py-[0.6vw] text-[1.3vh] lg:text-[0.8vw] font-medium flex items-center space-x-[0.5vh] lg:space-x-[0.3vw]"
           >
             <SkipForward className="w-[1.8vh] h-[1.8vh] lg:w-[0.9vw] lg:h-[0.9vw]" />
             <span>{t('skip')}</span>
@@ -533,7 +533,7 @@ export default function ExtrasStep({ formData, updateFormData, onNext, onPreviou
           <Button
             onClick={handleNext}
             size="md"
-            className="px-[3vh] lg:px-[2vw] py-[1vh] lg:py-[0.6vw] text-[1.6vh] lg:text-[0.9vw] font-semibold"
+            className="px-[2vh] lg:px-[2vw] py-[1vh] lg:py-[0.6vw] text-[1.3vh] lg:text-[0.9vw] font-semibold"
           >
             {t('continue')}
           </Button>

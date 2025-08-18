@@ -64,7 +64,7 @@ export default function StepIndicator({ steps, currentStep, completedSteps }: St
                 <div className="flex flex-col items-center">
                   <div
                     className={clsx(
-                      'flex items-center justify-center w-[6vh] h-[6vh] lg:w-[2vw] lg:h-[2vw] rounded-full text-[1.8vh] lg:text-[0.7vw] font-bold border-2 transition-all duration-300',
+                      'flex items-center justify-center w-[5.5vh] h-[5.5vh] lg:w-[2vw] lg:h-[2vw] rounded-full text-[1.6vh] lg:text-[0.7vw] font-bold border-2 transition-all duration-300',
                       {
                         'bg-teal-500 text-white border-teal-500 shadow-lg': isCompleted,
                         'bg-teal-500 text-white border-teal-500 shadow-lg ring-4 ring-teal-500/20': isCurrent,
