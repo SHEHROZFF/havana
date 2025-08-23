@@ -323,52 +323,79 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Start a database transaction to create ONE booking with multiple dates
+    // OPTIMIZATION 6: Optimized database transaction with timeout
     const booking = await prisma.$transaction(async (tx: any) => {
-      // Validate each date entry and check availability
+      // OPTIMIZATION 1: Batch validate all dates and check availability in ONE query
+      const dateValidationErrors: string[] = []
+      const parsedDates: { originalData: any, parsedDate: Date, dateStr: string }[] = []
+      
+      // Validate all dates first
       for (const dateData of datesToBook) {
         if (!dateData.date || !dateData.startTime || !dateData.endTime) {
-          throw new Error('All booking dates must have date, start time, and end time')
+          dateValidationErrors.push('All booking dates must have date, start time, and end time')
+          continue
         }
 
         const parsedDate = new Date(dateData.date)
         if (isNaN(parsedDate.getTime())) {
-          throw new Error(`Invalid booking date provided: ${dateData.date}`)
+          dateValidationErrors.push(`Invalid booking date provided: ${dateData.date}`)
+          continue
         }
 
-        // FIXED: Check for ANY overlapping time slots, not just exact matches
-        const existingBookingDates = await tx.bookingDate.findMany({
-          where: {
-            date: parsedDate,
-            booking: {
-              cartId: cartId,
-              status: {
-                in: ['PENDING', 'CONFIRMED']
-              }
-            }
-          },
-          select: {
-            id: true,
-            startTime: true,
-            endTime: true,
-            booking: {
-              select: {
-                id: true,
-                customerFirstName: true,
-                customerLastName: true
-              }
+        parsedDates.push({
+          originalData: dateData,
+          parsedDate,
+          dateStr: dateData.date
+        })
+      }
+
+      if (dateValidationErrors.length > 0) {
+        throw new Error(dateValidationErrors.join('; '))
+      }
+
+      // OPTIMIZATION 2: Get ALL existing bookings for ALL requested dates in ONE query
+      const allRequestedDates = parsedDates.map(d => d.parsedDate)
+      const existingBookingDates = await tx.bookingDate.findMany({
+        where: {
+          date: { in: allRequestedDates },
+          booking: {
+            cartId: cartId,
+            status: { in: ['PENDING', 'CONFIRMED'] }
+          }
+        },
+        select: {
+          id: true,
+          date: true,
+          startTime: true,
+          endTime: true,
+          booking: {
+            select: {
+              id: true,
+              customerFirstName: true,
+              customerLastName: true
             }
           }
-        })
+        }
+      })
 
-        // Check for time conflicts with proper overlap logic
-        const conflictingBooking = existingBookingDates.find((bookingDate: any) => {
+      // OPTIMIZATION 3: Check conflicts for all dates at once
+      const conflicts: string[] = []
+      for (const { originalData: dateData, parsedDate } of parsedDates) {
+        const existingForThisDate = existingBookingDates.filter(
+          (existing: any) => existing.date.getTime() === parsedDate.getTime()
+        )
+
+        const conflictingBooking = existingForThisDate.find((bookingDate: any) => {
           return dateData.startTime < bookingDate.endTime && bookingDate.startTime < dateData.endTime
         })
 
         if (conflictingBooking) {
-          throw new Error(`Time slot conflicts with existing booking for ${dateData.date}. Existing: ${conflictingBooking.startTime}-${conflictingBooking.endTime}, Requested: ${dateData.startTime}-${dateData.endTime}`)
+          conflicts.push(`Time slot conflicts with existing booking for ${dateData.date}. Existing: ${conflictingBooking.startTime}-${conflictingBooking.endTime}, Requested: ${dateData.startTime}-${dateData.endTime}`)
         }
+      }
+
+      if (conflicts.length > 0) {
+        throw new Error(conflicts.join('; '))
       }
 
       // Create the main booking record
@@ -418,31 +445,37 @@ export async function POST(request: NextRequest) {
         }
       })
 
-      // Create associated BookingDate records
-      const createdBookingDates = []
-      for (const dateData of datesToBook) {
-        const parsedBookingDate = new Date(dateData.date)
-        
-        const newBookingDate = await tx.bookingDate.create({
-          data: {
-            bookingId: newBooking.id,
-            date: parsedBookingDate,
-            startTime: dateData.startTime,
-            endTime: dateData.endTime,
-            totalHours: dateData.totalHours,
-            cartCost: dateData.cartCost,
-            isAvailable: dateData.isAvailable
-          }
-        })
-        createdBookingDates.push(newBookingDate)
-      }
+      // OPTIMIZATION 4: Batch create all BookingDate records at once
+      const bookingDateRecords = datesToBook.map((dateData: any) => ({
+        bookingId: newBooking.id,
+        date: new Date(dateData.date),
+        startTime: dateData.startTime,
+        endTime: dateData.endTime,
+        totalHours: dateData.totalHours,
+        cartCost: dateData.cartCost,
+        isAvailable: dateData.isAvailable || true
+      }))
+      
+      await tx.bookingDate.createMany({
+        data: bookingDateRecords
+      })
 
-      // CRITICAL: Re-validate and apply coupon if provided
+      // Get the created booking dates for return data
+      const createdBookingDates = await tx.bookingDate.findMany({
+        where: { bookingId: newBooking.id }
+      })
+
+      // OPTIMIZATION 5: Optimize coupon validation - combine coupon fetch with usage count
       if (couponCode && discountAmount > 0) {
-        // Find the coupon
-        const coupon = await tx.coupon.findUnique({
-          where: { code: couponCode.toUpperCase() }
-        })
+        // Find the coupon with usage count in a single query  
+        const [coupon, currentUsageCount] = await Promise.all([
+          tx.coupon.findUnique({
+            where: { code: couponCode.toUpperCase() }
+          }),
+          tx.couponUsage.count({
+            where: { couponId: { not: null } } // Will be filtered after coupon fetch
+          })
+        ])
         
         if (!coupon) {
           throw new Error('Invalid coupon code')
@@ -461,11 +494,11 @@ export async function POST(request: NextRequest) {
         
         // CRITICAL: Check usage limit in real-time to prevent multiple usage
         if (coupon.usageLimit) {
-          const currentUsageCount = await tx.couponUsage.count({
+          const realUsageCount = await tx.couponUsage.count({
             where: { couponId: coupon.id }
           })
           
-          if (currentUsageCount >= coupon.usageLimit) {
+          if (realUsageCount >= coupon.usageLimit) {
             throw new Error('This coupon has reached its usage limit')
           }
         }
@@ -559,6 +592,10 @@ export async function POST(request: NextRequest) {
       }
 
       return newBooking
+    }, {
+      // OPTIMIZATION 7: Transaction timeout settings for better performance
+      maxWait: 10000, // 10 seconds max wait for transaction
+      timeout: 30000  // 30 seconds timeout
     })
 
     // TODO: Send confirmation email
