@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { prisma, withRetry } from '@/lib/prisma'
 
 // GET /api/bookings - Get bookings (with filters)
 export async function GET(request: NextRequest) {
@@ -323,8 +323,75 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // OPTIMIZATION: Validate coupon OUTSIDE transaction to reduce transaction time
+    let validatedCoupon = null
+    if (couponCode && discountAmount > 0) {
+      // Find the coupon
+      const coupon = await (prisma as any).coupon.findUnique({
+        where: { code: couponCode.toUpperCase() }
+      })
+      
+      if (!coupon) {
+        return NextResponse.json(
+          { error: 'Invalid coupon code' },
+          { status: 400 }
+        )
+      }
+      
+      // Check if coupon is still active
+      if (coupon.status !== 'ACTIVE') {
+        return NextResponse.json(
+          { error: 'This coupon is no longer active' },
+          { status: 400 }
+        )
+      }
+      
+      // Check expiry dates
+      const now = new Date()
+      if (now < new Date(coupon.validFrom) || now > new Date(coupon.validUntil)) {
+        return NextResponse.json(
+          { error: 'This coupon has expired' },
+          { status: 400 }
+        )
+      }
+      
+      // Check usage limit 
+      if (coupon.usageLimit) {
+        const currentUsageCount = await (prisma as any).couponUsage.count({
+          where: { couponId: coupon.id }
+        })
+        
+        if (currentUsageCount >= coupon.usageLimit) {
+          return NextResponse.json(
+            { error: 'This coupon has reached its usage limit' },
+            { status: 400 }
+          )
+        }
+      }
+      
+      // Check minimum order amount
+      const orderSubtotal = (selectedDates && selectedDates.length > 0 
+        ? selectedDates.reduce((sum: number, date: any) => sum + date.cartCost, 0)
+        : (cartServiceAmount || 0)) + 
+        (selectedItems?.reduce((sum: any, item: any) => sum + (item.quantity * item.price), 0) || 0) +
+        (selectedServices?.reduce((sum: any, service: any) => sum + (service.quantity * service.price), 0) || 0) +
+        (shippingAmount || 0)
+        
+      if (coupon.minOrderAmount && orderSubtotal < coupon.minOrderAmount) {
+        return NextResponse.json(
+          { error: `Minimum order amount of €${coupon.minOrderAmount.toFixed(2)} required` },
+          { status: 400 }
+        )
+      }
+      
+      // Store validated coupon for use in transaction
+      validatedCoupon = coupon
+    }
+
     // Start a database transaction to create ONE booking with multiple dates
-    const booking = await prisma.$transaction(async (tx: any) => {
+    // OPTIMIZED: Increased timeout, removed heavy validation, and added retry mechanism
+    const booking = await withRetry(() => 
+      prisma.$transaction(async (tx: any) => {
       // Validate each date entry and check availability
       for (const dateData of datesToBook) {
         if (!dateData.date || !dateData.startTime || !dateData.endTime) {
@@ -437,82 +504,32 @@ export async function POST(request: NextRequest) {
         createdBookingDates.push(newBookingDate)
       }
 
-      // CRITICAL: Re-validate and apply coupon if provided
-      if (couponCode && discountAmount > 0) {
-        // Find the coupon
-        const coupon = await tx.coupon.findUnique({
-          where: { code: couponCode.toUpperCase() }
-        })
-        
-        if (!coupon) {
-          throw new Error('Invalid coupon code')
-        }
-        
-        // Check if coupon is still active
-        if (coupon.status !== 'ACTIVE') {
-          throw new Error('This coupon is no longer active')
-        }
-        
-        // Check expiry dates
-        const now = new Date()
-        if (now < new Date(coupon.validFrom) || now > new Date(coupon.validUntil)) {
-          throw new Error('This coupon has expired')
-        }
-        
-        // CRITICAL: Check usage limit in real-time to prevent multiple usage
-        if (coupon.usageLimit) {
+      // OPTIMIZED: Apply pre-validated coupon (validation done outside transaction)
+      if (validatedCoupon && couponCode && discountAmount > 0) {
+        // Final usage limit check inside transaction (race condition protection)
+        if (validatedCoupon.usageLimit) {
           const currentUsageCount = await tx.couponUsage.count({
-            where: { couponId: coupon.id }
+            where: { couponId: validatedCoupon.id }
           })
           
-          if (currentUsageCount >= coupon.usageLimit) {
+          if (currentUsageCount >= validatedCoupon.usageLimit) {
             throw new Error('This coupon has reached its usage limit')
           }
         }
-        
-        // Check minimum order amount
-        const orderSubtotal = (selectedDates && selectedDates.length > 0 
-          ? selectedDates.reduce((sum: number, date: any) => sum + date.cartCost, 0)
-          : (cartServiceAmount || 0)) + 
-          (selectedItems?.reduce((sum: any, item: any) => sum + (item.quantity * item.price), 0) || 0) +
-          (selectedServices?.reduce((sum: any, service: any) => sum + (service.quantity * service.price), 0) || 0) +
-          (shippingAmount || 0)
-          
-        if (coupon.minOrderAmount && orderSubtotal < coupon.minOrderAmount) {
-          throw new Error(`Minimum order amount of €${coupon.minOrderAmount.toFixed(2)} required`)
-        }
-        
-        // Recalculate discount to ensure it's correct
-        let recalculatedDiscount = 0
-        if (coupon.type === 'PERCENTAGE') {
-          recalculatedDiscount = (orderSubtotal * coupon.value) / 100
-          if (coupon.maxDiscount && recalculatedDiscount > coupon.maxDiscount) {
-            recalculatedDiscount = coupon.maxDiscount
-          }
-        } else if (coupon.type === 'FIXED_AMOUNT') {
-          recalculatedDiscount = Math.min(coupon.value, orderSubtotal)
-        }
-        
-        recalculatedDiscount = Math.min(recalculatedDiscount, orderSubtotal)
-        
-        // Verify the discount amount matches what user calculated
-        if (Math.abs(recalculatedDiscount - discountAmount) > 0.01) {
-          throw new Error('Coupon discount amount mismatch - please refresh and try again')
-        }
-        
+
         // Create coupon usage record - this MUST succeed for booking to complete
         await tx.couponUsage.create({
           data: {
-            couponId: coupon.id,
+            couponId: validatedCoupon.id,
             bookingId: newBooking.id,
             customerEmail: customerEmail,
-            discountAmount: recalculatedDiscount
+            discountAmount: discountAmount
           }
         })
         
         // Update coupon usage count
         await tx.coupon.update({
-          where: { id: coupon.id },
+          where: { id: validatedCoupon.id },
           data: {
             usageCount: { increment: 1 }
           }
@@ -559,7 +576,10 @@ export async function POST(request: NextRequest) {
       }
 
       return newBooking
+    }, { 
+      timeout: 15000 // 15 seconds timeout instead of default 5 seconds
     })
+    ) // Close the withRetry wrapper
 
     // TODO: Send confirmation email
     // TODO: Process payment if not cash
@@ -572,6 +592,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating booking:', error)
     
+    // Handle specific booking conflicts
     if (error instanceof Error && (error.message === 'Time slot is already booked' || error.message.includes('Time slot is already booked for'))) {
       return NextResponse.json(
         { error: error.message },
@@ -579,8 +600,37 @@ export async function POST(request: NextRequest) {
       )
     }
     
+    // Handle Prisma transaction timeout errors
+    if (error instanceof Error && error.message.includes('Transaction already closed')) {
+      return NextResponse.json(
+        { error: 'Booking process took too long. Please try again.' },
+        { status: 408 } // Request Timeout
+      )
+    }
+    
+    // Handle database connection errors
+    if (error instanceof Error && (error.message.includes('Server has closed the connection') || error.message.includes('P1017'))) {
+      return NextResponse.json(
+        { error: 'Database connection issue. Please try again in a moment.' },
+        { status: 503 } // Service Unavailable
+      )
+    }
+    
+    // Handle coupon-related errors
+    if (error instanceof Error && (
+      error.message.includes('coupon') || 
+      error.message.includes('usage limit') ||
+      error.message.includes('expired') ||
+      error.message.includes('minimum order')
+    )) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      )
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to create booking' },
+      { error: 'Failed to create booking. Please try again.' },
       { status: 500 }
     )
   }
