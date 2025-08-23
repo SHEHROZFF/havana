@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   
   try {
     body = await request.json()
-    const { name, description, image, location, pricePerHour, extraHourPrice, shippingPrice, pickupAvailable, shippingAvailable, capacity } = body
+    const { name, description, image, location, pricePerHour, shippingPrice, pickupAvailable, shippingAvailable, capacity } = body
 
     // TODO: Add authentication and authorization checks for admin users
 
@@ -58,7 +58,6 @@ export async function POST(request: NextRequest) {
         image: cartImage,
         location,
         pricePerHour: parseFloat(pricePerHour),
-        extraHourPrice: parseFloat(extraHourPrice || 0),
         shippingPrice: parseFloat(shippingPrice || 0),
         pickupAvailable: pickupAvailable !== false,
         shippingAvailable: shippingAvailable !== false,

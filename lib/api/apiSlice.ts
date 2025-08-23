@@ -16,7 +16,7 @@ const baseQuery = fetchBaseQuery({
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery,
-  tagTypes: ['Booking', 'FoodCart', 'FoodItem', 'Service', 'Dashboard'],
+  tagTypes: ['Booking', 'FoodCart', 'FoodItem', 'Service', 'Dashboard', 'Coupon'],
   // Enhanced caching configuration
   keepUnusedDataFor: 300, // 5 minutes
   refetchOnMountOrArgChange: 30, // 30 seconds

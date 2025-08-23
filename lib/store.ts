@@ -1,6 +1,7 @@
 import { configureStore } from '@reduxjs/toolkit'
 import { setupListeners } from '@reduxjs/toolkit/query'
 import { apiSlice } from './api/apiSlice'
+import { couponsApi } from './api/couponsApi'
 import { authSlice } from './slices/authSlice'
 import optimisticReducer from './api/optimisticUpdates'
 
@@ -8,13 +9,14 @@ export const store = configureStore({
   reducer: {
     // Add the generated reducer as a specific top-level slice
     api: apiSlice.reducer,
+    couponsApi: couponsApi.reducer,
     auth: authSlice.reducer,
     optimistic: optimisticReducer,
   },
   // Adding the api middleware enables caching, invalidation, polling,
   // and other useful features of `rtk-query`.
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware().concat(apiSlice.middleware),
+    getDefaultMiddleware().concat(apiSlice.middleware, couponsApi.middleware),
 })
 
 // optional, but required for refetchOnFocus/refetchOnReconnect behaviors

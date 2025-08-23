@@ -94,6 +94,28 @@ export const bookingsApi = apiSlice.injectEndpoints({
       providesTags: ['Booking'],
     }),
 
+    // Get all booked dates for a cart within a date range (optimized for bulk checking)
+    getBulkAvailability: builder.query<{
+      cartId: string
+      startDate: string
+      endDate: string
+      bookedDates: { [date: string]: Array<{
+        id: string
+        startTime: string
+        endTime: string
+        bookingId: string
+        customerName: string
+        status: string
+      }> }
+      totalBookings: number
+    }, { cartId: string; startDate: string; endDate: string }>({
+      query: ({ cartId, startDate, endDate }) => 
+        `/availability/bulk?cartId=${cartId}&startDate=${startDate}&endDate=${endDate}`,
+      providesTags: ['Booking'],
+      // Cache for 5 minutes since booking data doesn't change frequently
+      keepUnusedDataFor: 300
+    }),
+
     // Get dashboard statistics
     getDashboardStats: builder.query<{
       totalBookings: number
@@ -123,5 +145,6 @@ export const {
   useUpdateBookingStatusMutation,
   useCancelBookingMutation,
   useGetAvailabilityQuery,
+  useGetBulkAvailabilityQuery,
   useGetDashboardStatsQuery,
 } = bookingsApi

@@ -67,12 +67,10 @@ export async function GET(request: NextRequest) {
             }
           })
 
+          // FIXED: Correct time overlap logic
+          // Two time ranges [A_start, A_end] and [B_start, B_end] overlap if: A_start < B_end AND B_start < A_end
           const conflictingBooking = existingBookingDates.find((bookingDate: any) => {
-            return (
-              (bookingDate.startTime <= checkStartTime && bookingDate.endTime > checkStartTime) ||
-              (bookingDate.startTime < checkEndTime && bookingDate.endTime >= checkEndTime) ||
-              (bookingDate.startTime >= checkStartTime && bookingDate.endTime <= checkEndTime)
-            )
+            return checkStartTime < bookingDate.endTime && bookingDate.startTime < checkEndTime
           })
 
           results.push({
@@ -142,13 +140,10 @@ export async function GET(request: NextRequest) {
 
     // If specific time range is provided, check for conflicts with that time
     if (startTime && endTime) {
+      // FIXED: Correct time overlap logic
+      // Two time ranges [A_start, A_end] and [B_start, B_end] overlap if: A_start < B_end AND B_start < A_end
       const conflictingBooking = existingBookingDates.find((bookingDate: any) => {
-        // Use the EXACT same logic as in booking creation
-        return (
-          (bookingDate.startTime <= startTime && bookingDate.endTime > startTime) ||
-          (bookingDate.startTime < endTime && bookingDate.endTime >= endTime) ||
-          (bookingDate.startTime >= startTime && bookingDate.endTime <= endTime)
-        )
+        return startTime < bookingDate.endTime && bookingDate.startTime < endTime
       })
 
       return NextResponse.json({

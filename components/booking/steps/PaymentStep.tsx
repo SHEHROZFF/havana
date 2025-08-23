@@ -5,10 +5,12 @@ import { BookingFormData } from '@/types/booking'
 import Button from '@/components/ui/Button'
 import { clsx } from 'clsx'
 import { useCreateBookingMutation } from '../../../lib/api/bookingsApi'
-import { DollarSign, CheckCircle, Calendar, Users, Clock, Receipt, Shield, Truck, MapPin, CreditCard, Building2, BookmarkCheck, Upload, FileText, Check, X } from 'lucide-react'
+import { useValidateCouponMutation } from '../../../lib/api/couponsApi'
+import { DollarSign, CheckCircle, Calendar, Users, Clock, Receipt, Shield, Truck, MapPin, CreditCard, Building2, BookmarkCheck, Upload, FileText, Check, X, Tag, Percent } from 'lucide-react'
 import PaymentSkeleton from '@/components/ui/skeletons/PaymentSkeleton'
 import { PayPalButtons, PayPalScriptProvider } from '@paypal/react-paypal-js'
 import { useI18n } from '@/lib/i18n/context'
+import PaymentSuccessModal from '../../ui/PaymentSuccessModal'
 
 interface PaymentStepProps {
   formData: Partial<BookingFormData>
@@ -25,9 +27,127 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
   const [selectedBankId, setSelectedBankId] = useState<string>('')
   const [paymentSlipUrl, setPaymentSlipUrl] = useState<string>('')
   const [urlStatus, setUrlStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [successBookingData, setSuccessBookingData] = useState<any>(null)
 
-  // RTK Query mutation
+  // Coupon state
+  const [couponCode, setCouponCode] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null)
+  const [couponValidationStatus, setCouponValidationStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle')
+  const [couponError, setCouponError] = useState('')
+
+  // RTK Query mutations
   const [createBooking, { isLoading: creating }] = useCreateBookingMutation()
+  const [validateCoupon, { isLoading: validatingCoupon }] = useValidateCouponMutation()
+
+  // Navigation functions
+  const handleNavigateToWebsite = () => {
+    window.location.href = 'https://havana.gr/'
+  }
+
+  const resetFormState = () => {
+    // Reset all form data to initial state after successful booking
+    updateFormData({
+      selectedCartId: undefined,
+      selectedItems: [],
+      selectedServices: [],
+      selectedDates: [],
+      bookingDate: undefined,
+      startTime: undefined,
+      endTime: undefined,
+      totalHours: undefined,
+      isCustomTiming: false,
+      timeSlotType: undefined,
+      customerFirstName: undefined,
+      customerLastName: undefined,
+      customerEmail: undefined,
+      customerPhone: undefined,
+      customerAddress: undefined,
+      customerCity: undefined,
+      customerState: undefined,
+      customerZip: undefined,
+      customerCountry: undefined,
+      eventType: undefined,
+      guestCount: undefined,
+      specialNotes: undefined,
+      deliveryMethod: 'pickup',
+      shippingAddress: undefined,
+      shippingCity: undefined,
+      shippingState: undefined,
+      shippingZip: undefined,
+      shippingAmount: 0,
+      paymentMethod: undefined,
+      totalAmount: 0,
+      cartServiceAmount: 0,
+      servicesAmount: 0,
+      foodAmount: 0
+    })
+  }
+
+  const handleCloseModal = () => {
+    setShowSuccessModal(false)
+    resetFormState() // Reset form state after successful booking
+    onComplete()
+  }
+
+  // Coupon validation function
+  const handleValidateCoupon = async () => {
+    if (!couponCode.trim()) {
+      setCouponError('Please enter a coupon code')
+      return
+    }
+
+    setCouponValidationStatus('validating')
+    setCouponError('')
+
+    try {
+      const result = await validateCoupon({
+        couponCode: couponCode.trim(),
+        customerEmail: formData.customerEmail || '',
+        orderAmount: subtotal, // Use subtotal before any discounts, not total
+        cartIds: formData.selectedCartId ? [formData.selectedCartId] : [],
+        serviceIds: formData.selectedServices?.map(s => s.serviceId) || []
+        // isFirstTime removed - no authentication system to track this
+      }).unwrap()
+
+      if (result.valid) {
+        setAppliedCoupon(result)
+        setCouponValidationStatus('valid')
+        
+        // CRITICAL: Store full coupon data in formData to persist across renders
+        updateFormData({
+          couponCode: result.coupon?.code,
+          appliedCoupon: result.coupon, // Store full coupon object for booking creation
+          discountAmount: result.discountAmount || 0,
+          originalAmount: result.originalAmount || formData.totalAmount,
+          totalAmount: result.finalAmount || formData.totalAmount
+        })
+      } else {
+        setCouponValidationStatus('invalid')
+        setCouponError(result.error || 'Invalid coupon code')
+      }
+    } catch (error: any) {
+      setCouponValidationStatus('invalid')
+      setCouponError(error.data?.error || 'Failed to validate coupon')
+    }
+  }
+
+  // Remove applied coupon
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null)
+    setCouponCode('')
+    setCouponValidationStatus('idle')
+    setCouponError('')
+    
+    // CRITICAL: Clear coupon data from formData
+    updateFormData({
+      couponCode: undefined,
+      appliedCoupon: undefined,
+      discountAmount: 0,
+      originalAmount: undefined,
+      totalAmount: subtotal
+    })
+  }
 
   // Fetch bank configurations
   useEffect(() => {
@@ -149,7 +269,12 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
         totalAmount: total,
         cartServiceAmount: formData.cartServiceAmount || 0,
         servicesAmount: formData.servicesAmount || 0,
-        foodAmount: formData.selectedItems?.reduce((sum, item) => sum + item.price, 0) || 0
+        foodAmount: formData.selectedItems?.reduce((sum, item) => sum + item.price, 0) || 0,
+        
+        // Coupon Information - CRITICAL: Use formData (persistent) instead of appliedCoupon (local state)
+        couponCode: formData.couponCode || undefined,
+        discountAmount: formData.discountAmount || 0,
+        originalAmount: formData.originalAmount || undefined
       }
 
       const booking = await createBooking(finalFormData).unwrap()
@@ -174,16 +299,18 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
       if (captureData.success) {
         updateFormData(finalFormData)
         
-        alert(
-          `${t('payment_success_title')}\n\n` +
-          `${t('booking_id_label')}: ${booking.id}\n` +
-          `${t('transaction_id_label')}: ${captureData.captureId}\n` +
-          `${t('amount_paid_label')}: $${captureData.amount} ${captureData.currency}\n` +
-          `${t('payment_method_label')}: ${t('payment_method_paypal')}\n\n` +
-          `${t('confirmation_email_sent').replace('{email}', formData.customerEmail || '')}\n\n` +
-          `${t('thank_you_booking')}`
-        )
-        onComplete()
+        // Show success modal instead of alert
+        setSuccessBookingData({
+          id: booking.id,
+          totalAmount: total,
+          paymentMethod: 'paypal',
+          customerEmail: formData.customerEmail || '',
+          customerName: `${formData.customerFirstName} ${formData.customerLastName}`,
+          eventDate: formData.selectedDates?.[0]?.date || formData.bookingDate || '',
+          guestCount: formData.guestCount || 0,
+          cartName: 'Havana Van Bar' // You can get this from cart data if available
+        })
+        setShowSuccessModal(true)
       } else {
         throw new Error(t('payment_failed_title'))
       }
@@ -265,24 +392,30 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
         totalAmount: total,
         cartServiceAmount: formData.cartServiceAmount || 0,
         servicesAmount: formData.servicesAmount || 0,
-        foodAmount: formData.selectedItems?.reduce((sum, item) => sum + item.price, 0) || 0
+        foodAmount: formData.selectedItems?.reduce((sum, item) => sum + item.price, 0) || 0,
+        
+        // Coupon Information - CRITICAL: Use formData (persistent) instead of appliedCoupon (local state)
+        couponCode: formData.couponCode || undefined,
+        discountAmount: formData.discountAmount || 0,
+        originalAmount: formData.originalAmount || undefined
       }
 
       const booking = await createBooking(finalFormData).unwrap()
 
       updateFormData(finalFormData)
       
-      alert(
-        `Booking Created Successfully!\n\n` +
-        `${t('booking_id_label')}: ${booking.id}\n` +
-        `${t('total_amount')}: €${total.toFixed(2)}\n` +
-        `${t('payment_method_label')}: Bank Transfer\n\n` +
-        `Payment slip URL saved successfully!\nAdmin will verify your payment.\n\n` +
-        `${t('confirmation_email_sent').replace('{email}', formData.customerEmail || '')}\n\n` +
-        `${t('thank_you_booking')}`
-      )
-      
-      onComplete()
+      // Show success modal instead of alert
+      setSuccessBookingData({
+        id: booking.id,
+        totalAmount: total,
+        paymentMethod: 'bank_transfer',
+        customerEmail: formData.customerEmail || '',
+        customerName: `${formData.customerFirstName} ${formData.customerLastName}`,
+        eventDate: formData.selectedDates?.[0]?.date || formData.bookingDate || '',
+        guestCount: formData.guestCount || 0,
+        cartName: 'Havana Van Bar' // You can get this from cart data if available
+      })
+      setShowSuccessModal(true)
     } catch (error) {
       console.error('Bank transfer booking failed:', error)
       setUrlStatus('error')
@@ -347,24 +480,30 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
         totalAmount: total,
         cartServiceAmount: formData.cartServiceAmount || 0,
         servicesAmount: formData.servicesAmount || 0,
-        foodAmount: formData.selectedItems?.reduce((sum, item) => sum + item.price, 0) || 0
+        foodAmount: formData.selectedItems?.reduce((sum, item) => sum + item.price, 0) || 0,
+        
+        // Coupon Information - CRITICAL: Use formData (persistent) instead of appliedCoupon (local state)
+        couponCode: formData.couponCode || undefined,
+        discountAmount: formData.discountAmount || 0,
+        originalAmount: formData.originalAmount || undefined
       }
 
       const booking = await createBooking(finalFormData).unwrap()
 
         updateFormData(finalFormData)
         
-        alert(
-        `Reservation Created Successfully!\n\n` +
-          `${t('booking_id_label')}: ${booking.id}\n` +
-        `${t('total_amount')}: €${total.toFixed(2)}\n` +
-        `${t('payment_method_label')}: Reservation (No Payment)\n\n` +
-        `Your reservation has been confirmed. Payment can be made later.\n\n` +
-          `${t('confirmation_email_sent').replace('{email}', formData.customerEmail || '')}\n\n` +
-          `${t('thank_you_booking')}`
-        )
-      
-      onComplete()
+        // Show success modal instead of alert
+        setSuccessBookingData({
+          id: booking.id,
+          totalAmount: total,
+          paymentMethod: 'reservation',
+          customerEmail: formData.customerEmail || '',
+          customerName: `${formData.customerFirstName} ${formData.customerLastName}`,
+          eventDate: formData.selectedDates?.[0]?.date || formData.bookingDate || '',
+          guestCount: formData.guestCount || 0,
+          cartName: 'Havana Van Bar' // You can get this from cart data if available
+        })
+        setShowSuccessModal(true)
     } catch (error) {
       console.error('Reservation booking failed:', error)
       alert(
@@ -403,15 +542,16 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
       : (formData.cartServiceAmount || 0)
     
     const shippingTotal = formData.shippingAmount || 0
-    const total = foodTotal + servicesTotal + cartTotal + shippingTotal
+    const subtotal = foodTotal + servicesTotal + cartTotal + shippingTotal
+    const discountAmount = formData.discountAmount || 0
+    const total = Math.max(0, subtotal - discountAmount) // Ensure total doesn't go below 0
     
     const daysCount = formData.selectedDates?.length || (cartTotal > 0 ? 1 : 0)
-    const totalHours = formData.selectedDates?.reduce((sum, date) => sum + date.totalHours, 0) || formData.totalHours || 0
 
-    return { foodTotal, servicesTotal, cartTotal, shippingTotal, total, daysCount, totalHours }
-  }, [formData.selectedItems, formData.selectedServices, formData.selectedDates, formData.cartServiceAmount, formData.shippingAmount, formData.totalHours])
+    return { foodTotal, servicesTotal, cartTotal, shippingTotal, subtotal, discountAmount, total, daysCount }
+  }, [formData.selectedItems, formData.selectedServices, formData.selectedDates, formData.cartServiceAmount, formData.shippingAmount, formData.discountAmount])
 
-  const { foodTotal, servicesTotal, cartTotal, shippingTotal, total, daysCount, totalHours } = calculateTotals
+  const { foodTotal, servicesTotal, cartTotal, shippingTotal, subtotal, discountAmount, total, daysCount } = calculateTotals
 
   // Show loading skeleton if data is still loading
   if (creating) {
@@ -455,13 +595,13 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
                     <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw]">
                       <Clock className="w-[2vh] h-[2vh] lg:w-[1vw] lg:h-[1vw] text-teal-400" />
                       <span className="text-[1.6vh] lg:text-[0.8vw] text-gray-300">
-                        {t('total')}: {totalHours} {t('hours')}
+                        {t('total')}: {daysCount} {t('days')}
                       </span>
                     </div>
                     <div className="text-[1.3vh] lg:text-[0.65vw] text-gray-400 mt-[1vh] lg:mt-[0.5vw]">
                       {formData.selectedDates?.map((date, index) => (
                         <div key={index} className="mb-[0.5vh] lg:mb-[0.25vw]">
-                          {new Date(date.date).toLocaleDateString()}: {date.startTime} - {date.endTime} ({date.totalHours}h)
+                          {new Date(date.date).toLocaleDateString()}: {date.startTime} - {date.endTime}
                         </div>
                       ))}
                     </div>
@@ -544,12 +684,97 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
                     <span>€{servicesTotal.toFixed(2)}</span>
                   </div>
                 )}
+                
+                {/* Coupon Section - Sleek Integration */}
+                <div className="pt-[2vh] lg:pt-[1vw] mt-[2vh] lg:mt-[1vw] border-t border-slate-600/50">
+                  {appliedCoupon ? (
+                    // Applied Coupon Display
+                    <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-[1.5vh] lg:p-[0.75vw] mb-[1.5vh] lg:mb-[0.75vw]">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw]">
+                          <CheckCircle className="w-[1.8vh] h-[1.8vh] lg:w-[0.9vw] lg:h-[0.9vw] text-green-400" />
+                          <div>
+                            <p className="text-green-400 font-medium text-[1.6vh] lg:text-[0.8vw]">
+                              {appliedCoupon.coupon?.name || appliedCoupon.coupon?.code}
+                            </p>
+                            <p className="text-green-300 text-[1.2vh] lg:text-[0.6vw]">
+                              {appliedCoupon.message}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleRemoveCoupon}
+                          className="text-red-400 hover:text-red-300 p-[0.5vh] lg:p-[0.25vw] rounded transition-colors"
+                        >
+                          <X className="w-[1.6vh] h-[1.6vh] lg:w-[0.8vw] lg:h-[0.8vw]" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    // Coupon Input
+                    <div className="mb-[1.5vh] lg:mb-[0.75vw]">
+                      <div className="flex items-center space-x-[1vh] lg:space-x-[0.5vw] mb-[1vh] lg:mb-[0.5vw]">
+                        <Tag className="w-[1.8vh] h-[1.8vh] lg:w-[0.9vw] lg:h-[0.9vw] text-purple-400" />
+                        <span className="text-[1.6vh] lg:text-[0.8vw] text-gray-300 font-medium">{t('have_coupon')}</span>
+                      </div>
+                      <div className="flex gap-[1vh] lg:gap-[0.5vw]">
+                        <input
+                          type="text"
+                          value={couponCode}
+                          onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                          placeholder={t('enter_coupon_code')}
+                          className="flex-1 px-[1.5vh] lg:px-[0.75vw] py-[1vh] lg:py-[0.5vw] bg-slate-700/50 border border-slate-600 rounded text-white placeholder-gray-400 focus:border-purple-400 focus:outline-none text-[1.4vh] lg:text-[0.7vw]"
+                          disabled={validatingCoupon}
+                        />
+                        <button
+                          onClick={handleValidateCoupon}
+                          disabled={!couponCode.trim() || validatingCoupon}
+                          className="px-[2vh] lg:px-[1vw] py-[1vh] lg:py-[0.5vw] bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded text-[1.4vh] lg:text-[0.7vw] font-medium transition-colors flex items-center space-x-[0.5vh] lg:space-x-[0.25vw]"
+                        >
+                          {validatingCoupon ? (
+                            <>
+                              <div className="animate-spin w-[1.4vh] h-[1.4vh] lg:w-[0.7vw] lg:h-[0.7vw] border-2 border-white border-t-transparent rounded-full"></div>
+                              <span>{t('validating')}</span>
+                            </>
+                          ) : (
+                            <span>{t('apply_coupon')}</span>
+                          )}
+                        </button>
+                      </div>
+                      {couponError && (
+                        <div className="flex items-center space-x-[0.5vh] lg:space-x-[0.25vw] text-red-400 text-[1.2vh] lg:text-[0.6vw] mt-[0.5vh] lg:mt-[0.25vw]">
+                          <X className="w-[1.4vh] h-[1.4vh] lg:w-[0.7vw] lg:h-[0.7vw]" />
+                          <span>{couponError}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {shippingTotal > 0 && (
                   <div className="flex justify-between text-[1.6vh] lg:text-[0.8vw] text-gray-300">
                     <span>{t('delivery_fee')}</span>
                     <span>€{shippingTotal.toFixed(2)}</span>
                   </div>
                 )}
+                
+                {/* Discount row if coupon applied */}
+                {discountAmount > 0 && (
+                  <>
+                    <div className="flex justify-between text-[1.8vh] lg:text-[0.9vw] text-gray-300 pt-[1vh] lg:pt-[0.5vw] border-t border-slate-600">
+                      <span>{t('subtotal')}</span>
+                      <span>€{subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-[1.8vh] lg:text-[0.9vw] text-green-400">
+                      <span className="flex items-center gap-[1vh] lg:gap-[0.5vw]">
+                        <Tag className="w-[1.6vh] h-[1.6vh] lg:w-[0.8vw] lg:h-[0.8vw]" />
+                        {t('coupon_discount')} ({formData.couponCode})
+                      </span>
+                      <span>-€{discountAmount.toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
+                
                 <div className="flex justify-between text-[2.2vh] lg:text-[1.1vw] font-bold text-white pt-[1vh] lg:pt-[0.5vw] border-t border-slate-600">
                     <span>{t('total')}</span>
                   <span>€{total.toFixed(2)}</span>
@@ -873,6 +1098,16 @@ export default function PaymentStep({ formData, updateFormData, onPrevious, onCo
           </p>
         </div>
       </div>
+
+      {/* Payment Success Modal */}
+      {showSuccessModal && successBookingData && (
+        <PaymentSuccessModal
+          isOpen={showSuccessModal}
+          onClose={handleCloseModal}
+          bookingData={successBookingData}
+          onNavigateToWebsite={handleNavigateToWebsite}
+        />
+      )}
     </div>
   )
 }

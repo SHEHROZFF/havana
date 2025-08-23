@@ -50,7 +50,7 @@ export default function ServicesPage() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    pricePerHour: '',
+    pricePerDay: '',
     category: '' as ServiceCategory,
     cartId: '',
     isActive: true
@@ -93,7 +93,7 @@ export default function ServicesPage() {
       const serviceData = {
         name: formData.name,
         description: formData.description,
-        pricePerHour: parseFloat(formData.pricePerHour),
+        pricePerHour: parseFloat(formData.pricePerDay),
         category: formData.category,
         cartId: formData.cartId || undefined,
         isActive: formData.isActive
@@ -121,7 +121,7 @@ export default function ServicesPage() {
     setFormData({
       name: '',
       description: '',
-      pricePerHour: '',
+      pricePerDay: '',
       category: '' as ServiceCategory,
       cartId: '',
       isActive: true
@@ -133,7 +133,7 @@ export default function ServicesPage() {
     setFormData({
       name: service.name,
       description: service.description,
-      pricePerHour: service.pricePerHour.toString(),
+      pricePerDay: (service.pricePerHour || 0).toString(),
       category: service.category,
       cartId: service.cartId || '',
       isActive: service.isActive
@@ -237,9 +237,9 @@ export default function ServicesPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-400 text-sm">{t('avg_hourly_rate')}</p>
+                <p className="text-gray-400 text-sm">Avg Daily Rate</p>
                 <p className="text-2xl font-bold text-teal-400">
-                  €{services.length > 0 ? (services.reduce((sum, s) => sum + s.pricePerHour, 0) / services.length).toFixed(0) : '0'}
+                  €{services.length > 0 ? (services.reduce((sum, s) => sum + (s.pricePerHour || 0), 0) / services.length).toFixed(0) : '0'}
                 </p>
               </div>
                               <div>
@@ -308,15 +308,15 @@ export default function ServicesPage() {
                 />
                 
                 <Input
-                  label={t('price_per_hour')}
+                  label="Daily Price"
                   type="number"
-                  value={formData.pricePerHour}
-                  onChange={(e) => setFormData(prev => ({ ...prev, pricePerHour: e.target.value }))}
+                  value={formData.pricePerDay}
+                  onChange={(e) => setFormData(prev => ({ ...prev, pricePerDay: e.target.value }))}
                   required
                   min="0"
                   step="0.01"
-                  placeholder={t('price_per_hour_placeholder')}
-                  helperText={t('price_per_hour_helper')}
+                  placeholder="25.00"
+                  helperText="Fixed price per day for this service"
                 />
                 
                 <Select
@@ -431,7 +431,7 @@ export default function ServicesPage() {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">{t('price_label')}</span>
-                      <span className="text-teal-400 font-bold">€{service.pricePerHour}</span>
+                      <span className="text-teal-400 font-bold">€{(service.pricePerHour || 0).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">{t('cart_label')}</span>

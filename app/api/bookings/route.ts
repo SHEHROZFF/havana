@@ -243,7 +243,11 @@ export async function POST(request: NextRequest) {
       shippingCity,
       shippingState,
       shippingZip,
-      shippingAmount
+      shippingAmount,
+      // Coupon information
+      couponCode,
+      discountAmount = 0,
+      originalAmount
     } = body
     
     const cartId = selectedCartId // Map to expected field name
@@ -332,23 +336,38 @@ export async function POST(request: NextRequest) {
           throw new Error(`Invalid booking date provided: ${dateData.date}`)
         }
 
-        // Check if the cart is available for this specific time slot
-        const existingBookingConflict = await tx.bookingDate.findFirst({
-        where: {
+        // FIXED: Check for ANY overlapping time slots, not just exact matches
+        const existingBookingDates = await tx.bookingDate.findMany({
+          where: {
             date: parsedDate,
-            startTime: dateData.startTime,
-            endTime: dateData.endTime,
             booking: {
               cartId: cartId,
-          status: {
-            in: ['PENDING', 'CONFIRMED']
+              status: {
+                in: ['PENDING', 'CONFIRMED']
               }
+            }
+          },
+          select: {
+            id: true,
+            startTime: true,
+            endTime: true,
+            booking: {
+              select: {
+                id: true,
+                customerFirstName: true,
+                customerLastName: true
+              }
+            }
           }
-        }
-      })
+        })
 
-        if (existingBookingConflict) {
-          throw new Error(`Time slot is already booked for ${dateData.date} ${dateData.startTime}-${dateData.endTime}`)
+        // Check for time conflicts with proper overlap logic
+        const conflictingBooking = existingBookingDates.find((bookingDate: any) => {
+          return dateData.startTime < bookingDate.endTime && bookingDate.startTime < dateData.endTime
+        })
+
+        if (conflictingBooking) {
+          throw new Error(`Time slot conflicts with existing booking for ${dateData.date}. Existing: ${conflictingBooking.startTime}-${conflictingBooking.endTime}, Requested: ${dateData.startTime}-${dateData.endTime}`)
         }
       }
 
@@ -356,7 +375,9 @@ export async function POST(request: NextRequest) {
       const newBooking = await tx.booking.create({
         data: {
           userId,
-          cartId,
+          cart: {
+            connect: { id: cartId }
+          },
           totalAmount,
           status: paymentMethod === 'reservation' ? 'PENDING' : 'PENDING',
           paymentStatus: paymentStatus || 'PENDING',
@@ -385,6 +406,10 @@ export async function POST(request: NextRequest) {
           shippingState,
           shippingZip,
           shippingAmount,
+          // Coupon information
+          couponCode,
+          discountAmount: discountAmount || 0, // Ensure it's never null
+          originalAmount,
           // For backward compatibility, set legacy fields from the first selected date
           bookingDate: datesToBook[0] ? new Date(datesToBook[0].date) : null,
           startTime: datesToBook[0] ? datesToBook[0].startTime : null,
@@ -410,6 +435,88 @@ export async function POST(request: NextRequest) {
           }
         })
         createdBookingDates.push(newBookingDate)
+      }
+
+      // CRITICAL: Re-validate and apply coupon if provided
+      if (couponCode && discountAmount > 0) {
+        // Find the coupon
+        const coupon = await tx.coupon.findUnique({
+          where: { code: couponCode.toUpperCase() }
+        })
+        
+        if (!coupon) {
+          throw new Error('Invalid coupon code')
+        }
+        
+        // Check if coupon is still active
+        if (coupon.status !== 'ACTIVE') {
+          throw new Error('This coupon is no longer active')
+        }
+        
+        // Check expiry dates
+        const now = new Date()
+        if (now < new Date(coupon.validFrom) || now > new Date(coupon.validUntil)) {
+          throw new Error('This coupon has expired')
+        }
+        
+        // CRITICAL: Check usage limit in real-time to prevent multiple usage
+        if (coupon.usageLimit) {
+          const currentUsageCount = await tx.couponUsage.count({
+            where: { couponId: coupon.id }
+          })
+          
+          if (currentUsageCount >= coupon.usageLimit) {
+            throw new Error('This coupon has reached its usage limit')
+          }
+        }
+        
+        // Check minimum order amount
+        const orderSubtotal = (selectedDates && selectedDates.length > 0 
+          ? selectedDates.reduce((sum: number, date: any) => sum + date.cartCost, 0)
+          : (cartServiceAmount || 0)) + 
+          (selectedItems?.reduce((sum: any, item: any) => sum + (item.quantity * item.price), 0) || 0) +
+          (selectedServices?.reduce((sum: any, service: any) => sum + (service.quantity * service.price), 0) || 0) +
+          (shippingAmount || 0)
+          
+        if (coupon.minOrderAmount && orderSubtotal < coupon.minOrderAmount) {
+          throw new Error(`Minimum order amount of €${coupon.minOrderAmount.toFixed(2)} required`)
+        }
+        
+        // Recalculate discount to ensure it's correct
+        let recalculatedDiscount = 0
+        if (coupon.type === 'PERCENTAGE') {
+          recalculatedDiscount = (orderSubtotal * coupon.value) / 100
+          if (coupon.maxDiscount && recalculatedDiscount > coupon.maxDiscount) {
+            recalculatedDiscount = coupon.maxDiscount
+          }
+        } else if (coupon.type === 'FIXED_AMOUNT') {
+          recalculatedDiscount = Math.min(coupon.value, orderSubtotal)
+        }
+        
+        recalculatedDiscount = Math.min(recalculatedDiscount, orderSubtotal)
+        
+        // Verify the discount amount matches what user calculated
+        if (Math.abs(recalculatedDiscount - discountAmount) > 0.01) {
+          throw new Error('Coupon discount amount mismatch - please refresh and try again')
+        }
+        
+        // Create coupon usage record - this MUST succeed for booking to complete
+        await tx.couponUsage.create({
+          data: {
+            couponId: coupon.id,
+            bookingId: newBooking.id,
+            customerEmail: customerEmail,
+            discountAmount: recalculatedDiscount
+          }
+        })
+        
+        // Update coupon usage count
+        await tx.coupon.update({
+          where: { id: coupon.id },
+          data: {
+            usageCount: { increment: 1 }
+          }
+        })
       }
 
       // Create booking items (these are for the entire booking, not per date)

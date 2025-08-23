@@ -49,6 +49,17 @@ export const bookingsTranslations = {
     
     // Payment slip status
     verified: 'Επιβεβαιωμένο',
+    
+    // Admin Modal translations
+    admin_success: 'Επιτυχία',
+    admin_error: 'Σφάλμα', 
+    admin_warning: 'Προειδοποίηση',
+    admin_info: 'Πληροφορία',
+    close: 'Κλείσιμο',
+    payment_slip_verified: 'Το παραστατικό πληρωμής επιβεβαιώθηκε επιτυχώς',
+    payment_slip_rejected: 'Το παραστατικό πληρωμής απορρίφθηκε',
+    booking_status_updated: 'Η κατάσταση της κράτησης ενημερώθηκε',
+    booking_cancelled: 'Η κράτηση ακυρώθηκε επιτυχώς',
     rejected: 'Απορρίφθηκε',
     no_slip: 'Χωρίς Απόδειξη',
     
@@ -208,6 +219,17 @@ export const bookingsTranslations = {
     
     // Payment slip status
     verified: 'Verified',
+    
+    // Admin Modal translations
+    admin_success: 'Success',
+    admin_error: 'Error',
+    admin_warning: 'Warning',
+    admin_info: 'Information',
+    close: 'Close',
+    payment_slip_verified: 'Payment slip has been verified successfully',
+    payment_slip_rejected: 'Payment slip has been rejected',
+    booking_status_updated: 'Booking status has been updated',
+    booking_cancelled: 'Booking has been cancelled successfully',
     rejected: 'Rejected',
     no_slip: 'No Slip',
     

@@ -202,17 +202,11 @@ export default function CartSelectionStep({ formData, updateFormData, onNext }: 
                   {renderAvailabilityBadge(cart)}
 
                   {/* Pricing */}
-                  <div className="bg-slate-700/50 rounded-lg p-[1.5vh] lg:p-[0.75vw] space-y-[0.8vh] lg:space-y-[0.4vw]">
+                  <div className="bg-slate-700/50 rounded-lg p-[1.5vh] lg:p-[0.75vw]">
                     <div className="flex justify-between items-center">
-                      <span className='text-white'>{t('cart_base_price_4hrs')}</span>
+                      <span className='text-white'>{t('daily_rate')}:</span>
                       <span className="font-bold text-white">€{cart.pricePerHour.toFixed(2)}</span>
                     </div>
-                    {cart.extraHourPrice > 0 && (
-                      <div className="flex justify-between items-center text-[1.3vh] lg:text-[0.65vw]">
-                        <span className='text-white'>{t('cart_extra_hours_after_4')}</span>
-                        <span className="font-medium text-yellow-400">+€{cart.extraHourPrice.toFixed(2)}</span>
-                      </div>
-                    )}
                   </div>
 
                   {/* Select Button */}
@@ -300,7 +294,7 @@ export default function CartSelectionStep({ formData, updateFormData, onNext }: 
                     <div className="bg-slate-700/50 rounded-lg p-[1vh] lg:p-[0.5vw]">
                       <div className="flex justify-between items-center text-[1.2vh] lg:text-[0.6vw]">
                         <span>{t('cart_base_price_short')}</span>
-                        <span className="font-bold text-white">${cart.pricePerHour.toFixed(2)}</span>
+                        <span className="font-bold text-white">€{cart.pricePerHour.toFixed(2)}</span>
                       </div>
                     </div>
 

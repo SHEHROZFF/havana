@@ -183,10 +183,16 @@ function BookingFormContent() {
       {/* Main Content */}
       <div className="px-[2vh] lg:px-[1vw] pb-[4vh] lg:pb-[1vw]">
         <div className="max-w-[160vh] lg:max-w-[45vw] mx-auto relative">
-          {/* Order Summary - Top Right */}
+          {/* Order Summary - Top Right (Desktop) */}
           <OrderSummary 
             formData={formData} 
             className="hidden lg:block absolute top-0 right-[-25vw] w-[22vw] z-10"
+          />
+
+          {/* Order Summary - Mobile */}
+          <OrderSummary 
+            formData={formData} 
+            className="lg:hidden mb-[2vh]"
           />
 
           {/* Step Indicator */}

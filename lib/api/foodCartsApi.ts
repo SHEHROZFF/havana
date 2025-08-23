@@ -27,7 +27,6 @@ export const foodCartsApi = apiSlice.injectEndpoints({
       description: string
       location: string
       pricePerHour: number
-      extraHourPrice?: number
       shippingPrice?: number
       pickupAvailable?: boolean
       shippingAvailable?: boolean
@@ -50,7 +49,6 @@ export const foodCartsApi = apiSlice.injectEndpoints({
       description?: string
       location?: string
       pricePerHour?: number
-      extraHourPrice?: number
       shippingPrice?: number
       pickupAvailable?: boolean
       shippingAvailable?: boolean

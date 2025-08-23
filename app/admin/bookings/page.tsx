@@ -434,10 +434,7 @@ export default function BookingsPage() {
                                   <span className="text-gray-400">Time:</span>
                                   <span className="text-white">{bookingDate.startTime} - {bookingDate.endTime}</span>
                                 </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-gray-400">Hours:</span>
-                                  <span className="text-white">{bookingDate.totalHours}h</span>
-                                </div>
+
                                 <div className="flex justify-between text-sm">
                                   <span className="text-gray-400">{t('cost')}:</span>
                                   <span className="text-white">€{bookingDate.cartCost?.toFixed(2)}</span>
@@ -457,10 +454,7 @@ export default function BookingsPage() {
                                 <span className="text-gray-400">Time:</span>
                                 <span className="text-white">{booking.startTime} - {booking.endTime}</span>
                               </div>
-                              <div className="flex justify-between text-sm">
-                                <span className="text-gray-400">Hours:</span>
-                                <span className="text-white">{booking.totalHours}h</span>
-                              </div>
+
                             </div>
                           )}
                         </div>

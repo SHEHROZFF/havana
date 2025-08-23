@@ -406,7 +406,7 @@ export default function ExtrasStep({ formData, updateFormData, onNext, onPreviou
                                   <Icon className="w-[2.5vh] h-[2.5vh] lg:w-[1.2vw] lg:h-[1.2vw] text-white" />
                                 </div>
                                 <div className="bg-teal-600 px-[1vh] lg:px-[0.5vw] py-[0.4vh] lg:py-[0.2vw] rounded text-white text-[1.2vh] lg:text-[0.6vw] font-semibold">
-                                  ${service.pricePerHour}
+                                  €{service.pricePerHour.toFixed(2)}
                                 </div>
                               </div>
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { BookingFormData, BookingDate } from '@/types/booking'
 import Button from '@/components/ui/Button'
-import { useGetAvailabilityQuery } from '../../../lib/api/bookingsApi'
+import { useGetBulkAvailabilityQuery } from '../../../lib/api/bookingsApi'
 import { useGetFoodCartByIdQuery } from '../../../lib/api/foodCartsApi'
 import { AlertTriangle, Clock, Calendar, Check, ChevronLeft, ChevronRight, X, Plus, Home, Truck } from 'lucide-react'
 import TimingSkeleton from '@/components/ui/skeletons/TimingSkeleton'
@@ -26,34 +26,44 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
   const [endTime, setEndTime] = useState('')
   
   const [calendarView, setCalendarView] = useState(new Date())
-  const [availabilityChecks, setAvailabilityChecks] = useState<{[key: string]: any}>({})
+  const [cachedBookedDates, setCachedBookedDates] = useState<{[date: string]: any[]}>({})
   const [checkingAvailability, setCheckingAvailability] = useState(false)
 
-  // Initialize from existing data if available
+  // Initialize from existing data if available (only on mount and when coming from other steps)
   useEffect(() => {
-    if (formData.selectedDates && formData.selectedDates.length > 0) {
-      setSelectedDates(formData.selectedDates)
-      // If single date, populate time fields for editing
-      if (formData.selectedDates.length === 1) {
-        const firstDate = formData.selectedDates[0]
-        setStartTime(firstDate.startTime)
-        setEndTime(firstDate.endTime)
+    // Only initialize if we have no local state yet
+    if (selectedDates.length === 0) {
+      if (formData.selectedDates && formData.selectedDates.length > 0) {
+        setSelectedDates(formData.selectedDates)
+        // If single date, populate time fields for editing
+        if (formData.selectedDates.length === 1) {
+          const firstDate = formData.selectedDates[0]
+          setStartTime(firstDate.startTime || '10:00') // Default fallback
+          setEndTime(firstDate.endTime || '18:00') // Default fallback
+        }
+      } else if (formData.bookingDate && formData.startTime && formData.endTime) {
+        // Legacy single date format
+        const legacyDate: BookingDate = {
+          date: formData.bookingDate,
+          startTime: formData.startTime,
+          endTime: formData.endTime,
+          totalHours: formData.totalHours || calculateTotalHours(formData.startTime, formData.endTime),
+          cartCost: 0,
+          isAvailable: true
+        }
+        const legacyDates = [legacyDate]
+        setSelectedDates(legacyDates)
+        setStartTime(formData.startTime)
+        setEndTime(formData.endTime)
+        
+        // Ensure OrderSummary stays synced with legacy data
+        updateFormData({
+          selectedDates: legacyDates,
+          cartServiceAmount: legacyDate.cartCost
+        })
       }
-    } else if (formData.bookingDate && formData.startTime && formData.endTime) {
-      // Legacy single date format
-      const legacyDate: BookingDate = {
-        date: formData.bookingDate,
-        startTime: formData.startTime,
-        endTime: formData.endTime,
-        totalHours: formData.totalHours || 0,
-        cartCost: 0,
-        isAvailable: true
-      }
-      setSelectedDates([legacyDate])
-      setStartTime(formData.startTime)
-      setEndTime(formData.endTime)
     }
-  }, [formData])
+  }, [selectedDates.length, formData.bookingDate, formData.startTime, formData.endTime]) // Only runs when selectedDates.length changes to 0 or from 0
 
   // Fetch cart data for pricing
   const {
@@ -64,52 +74,131 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
     skip: !formData.selectedCartId
   })
 
-  // Calculate total hours between start and end time
-  const calculateTotalHours = (start: string, end: string) => {
-    const startTime = new Date(`2023-01-01T${start}:00`)
-    const endTime = new Date(`2023-01-01T${end}:00`)
+  // Calculate date range for bulk availability fetching (current month + next month)
+  const getDateRange = () => {
+    const currentMonth = new Date(calendarView.getFullYear(), calendarView.getMonth(), 1)
+    const nextMonth = new Date(calendarView.getFullYear(), calendarView.getMonth() + 2, 0) // Last day of next month
     
-    if (endTime <= startTime) {
-      endTime.setDate(endTime.getDate() + 1)
+    return {
+      startDate: currentMonth.toISOString().split('T')[0],
+      endDate: nextMonth.toISOString().split('T')[0]
     }
-    
-    return Math.ceil((endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60))
   }
 
-  // Calculate cart cost with tiered pricing
-  const calculateCartCost = (hours: number) => {
-    if (!cartData) return 0
-    
-    const basePrice = cartData.pricePerHour || 150
-    const extraHourPrice = cartData.extraHourPrice || 0
-    
-    if (hours <= 4) {
-      return basePrice
-    } else {
-      const extraHours = hours - 4
-      return basePrice + (extraHours * extraHourPrice)
+  // Fetch booked dates for the current date range
+  const { startDate, endDate } = getDateRange()
+  const {
+    data: bulkAvailabilityData,
+    isLoading: availabilityLoading,
+    error: availabilityError
+  } = useGetBulkAvailabilityQuery({
+    cartId: formData.selectedCartId!,
+    startDate,
+    endDate
+  }, {
+    skip: !formData.selectedCartId,
+    // Refetch when month changes (date range changes)
+    refetchOnMountOrArgChange: true
+  })
+
+  // Update cached booked dates when bulk data is fetched
+  useEffect(() => {
+    if (bulkAvailabilityData?.bookedDates) {
+      setCachedBookedDates(bulkAvailabilityData.bookedDates)
     }
+  }, [bulkAvailabilityData])
+
+  // Calculate cart cost - simple daily rate
+  const calculateCartCost = () => {
+    if (!cartData) return 150 // Use fallback even when loading
+    
+    return cartData.pricePerHour || 150
+  }
+
+  // Calculate total hours between start and end time
+  const calculateTotalHours = (startTime: string, endTime: string) => {
+    if (!startTime || !endTime) return 0
+    
+    if (startTime === '00:00' && endTime === '23:59') {
+      return 24 // Full day
+    }
+    
+    const [startHour, startMinute] = startTime.split(':').map(Number)
+    const [endHour, endMinute] = endTime.split(':').map(Number)
+    
+    const startMinutes = startHour * 60 + startMinute
+    const endMinutes = endHour * 60 + endMinute
+    
+    const totalMinutes = endMinutes - startMinutes
+    return Math.max(0, Math.round(totalMinutes / 60 * 10) / 10) // Round to 1 decimal place
   }
 
   // Determine if single or multi-day booking
   const isSingleDay = selectedDates.length === 1
   const isMultiDay = selectedDates.length > 1
+
+  // Re-check availability for selected dates when cached data becomes available
+  useEffect(() => {
+    if (Object.keys(cachedBookedDates).length > 0 && selectedDates.length > 0) {
+      if (isSingleDay && selectedDates[0]?.startTime && selectedDates[0]?.endTime) {
+        checkSingleAvailability(selectedDates[0])
+      } else if (isMultiDay) {
+        checkMultipleAvailability(selectedDates)
+      }
+    }
+  }, [cachedBookedDates, isSingleDay, isMultiDay])
+
+  // Update cart costs when cart data becomes available
+  useEffect(() => {
+    if (cartData && selectedDates.length > 0) {
+      const correctCost = cartData.pricePerHour || 150
+      
+      // Check if any dates have incorrect cost (fallback was used)
+      const needsUpdate = selectedDates.some(date => date.cartCost !== correctCost)
+      
+      if (needsUpdate) {
+        const updatedDates = selectedDates.map(date => ({
+          ...date,
+          cartCost: correctCost,
+          // Recalculate totalHours if missing
+          totalHours: date.totalHours || calculateTotalHours(date.startTime, date.endTime)
+        }))
+        
+        setSelectedDates(updatedDates)
+        
+        // Update form data with correct costs
+        const newTotalCost = updatedDates.reduce((sum, date) => sum + date.cartCost, 0)
+        updateFormData({
+          selectedDates: updatedDates,
+          cartServiceAmount: newTotalCost
+        })
+      }
+    }
+  }, [cartData, selectedDates.length])
   
   // Current selected date (for single day time configuration)
   const currentSelectedDate = selectedDates[0]
   
-  // Auto-calculate 24-hour bookings for multi-day
+  // Auto-calculate daily bookings for multi-day
   useEffect(() => {
     if (isMultiDay) {
       const updatedDates = selectedDates.map(date => ({
         ...date,
         startTime: '00:00',
-        endTime: '23:59', 
-        totalHours: 24,
-        cartCost: calculateCartCost(24),
+        endTime: '23:59',
+        totalHours: 24, // Full day
+        cartCost: calculateCartCost(),
         isAvailable: false // Will be checked by availability API
       }))
       setSelectedDates(updatedDates)
+      
+      // Update form data immediately for multi-day changes
+      const newTotalCost = updatedDates.reduce((sum, date) => sum + date.cartCost, 0)
+      updateFormData({
+        selectedDates: updatedDates,
+        cartServiceAmount: newTotalCost
+      })
+      
       checkMultipleAvailability(updatedDates)
     }
   }, [selectedDates.length, cartData])
@@ -117,80 +206,104 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
   // Update single day when times change
   useEffect(() => {
     if (isSingleDay && currentSelectedDate && startTime && endTime) {
-      const hours = calculateTotalHours(startTime, endTime)
-      const cost = calculateCartCost(hours)
+      const cost = calculateCartCost()
+      
+      // FIXED: Check availability immediately using cached data instead of setting to false
+      const { isAvailable, conflictingBooking } = checkLocalAvailability(
+        currentSelectedDate.date,
+        startTime,
+        endTime
+      )
       
       const updatedDate = {
         ...currentSelectedDate,
         startTime,
         endTime,
-        totalHours: hours,
+        totalHours: calculateTotalHours(startTime, endTime),
         cartCost: cost,
-        isAvailable: false // Will be checked by availability API
+        isAvailable,
+        conflictingBooking
       }
       
-      setSelectedDates([updatedDate])
-      checkSingleAvailability(updatedDate)
-    }
-  }, [startTime, endTime, isSingleDay, cartData])
-  
-  // Availability checking functions
-  const checkSingleAvailability = async (dateObj: BookingDate) => {
-    if (!formData.selectedCartId || !dateObj.date || !dateObj.startTime || !dateObj.endTime) return
-    
-    setCheckingAvailability(true)
-    try {
-      const response = await fetch(`/api/availability?cartId=${formData.selectedCartId}&date=${dateObj.date}&startTime=${dateObj.startTime}&endTime=${dateObj.endTime}`)
-      const data = await response.json()
+      const newDates = [updatedDate]
+      setSelectedDates(newDates)
       
-      setSelectedDates(prev => prev.map(d => 
-        d.date === dateObj.date ? { ...d, isAvailable: data.isAvailable || false, conflictingBooking: data.conflictingBooking } : d
-      ))
-    } catch (error) {
-      console.error('Error checking availability:', error)
-      setSelectedDates(prev => prev.map(d => 
-        d.date === dateObj.date ? { ...d, isAvailable: false } : d
-      ))
-    } finally {
-      setCheckingAvailability(false)
+      // Update form data immediately when time changes
+      updateFormData({
+        selectedDates: newDates,
+        cartServiceAmount: cost
+      })
+    }
+  }, [startTime, endTime, isSingleDay, cartData, cachedBookedDates])
+  
+  // Local availability checking functions using cached data
+  const checkLocalAvailability = (dateStr: string, startTime: string, endTime: string) => {
+    const bookedSlots = cachedBookedDates[dateStr] || []
+    
+    // If no booked slots for this date, it's available
+    if (bookedSlots.length === 0) {
+      return { isAvailable: true, conflictingBooking: null }
+    }
+    
+    // FIXED: Correct time overlap logic
+    // Two time ranges [A_start, A_end] and [B_start, B_end] overlap if: A_start < B_end AND B_start < A_end
+    const conflictingBooking = bookedSlots.find((slot) => {
+      return startTime < slot.endTime && slot.startTime < endTime
+    })
+    
+    return {
+      isAvailable: !conflictingBooking,
+      conflictingBooking: conflictingBooking || null
     }
   }
 
-  const checkMultipleAvailability = async (dates: BookingDate[]) => {
-    if (!formData.selectedCartId) return
+  const checkSingleAvailability = (dateObj: BookingDate) => {
+    if (!dateObj.date || !dateObj.startTime || !dateObj.endTime) return
     
-    setCheckingAvailability(true)
-    const availabilityPromises = dates.map(async (dateObj) => {
-      try {
-        const response = await fetch(`/api/availability?cartId=${formData.selectedCartId}&date=${dateObj.date}&startTime=${dateObj.startTime}&endTime=${dateObj.endTime}`)
-        const data = await response.json()
-        return { 
-          date: dateObj.date, 
-          isAvailable: data.isAvailable || false, 
-          conflictingBooking: data.conflictingBooking 
-        }
-      } catch (error) {
-        console.error(`Error checking availability for ${dateObj.date}:`, error)
-        return { date: dateObj.date, isAvailable: false, conflictingBooking: null }
-      }
+    const { isAvailable, conflictingBooking } = checkLocalAvailability(
+      dateObj.date, 
+      dateObj.startTime, 
+      dateObj.endTime
+    )
+    
+    const updatedDates = selectedDates.map(d => 
+      d.date === dateObj.date ? { ...d, isAvailable, conflictingBooking } : d
+    )
+    
+    setSelectedDates(updatedDates)
+    
+    // Update form data immediately when availability changes
+    const newTotalCost = updatedDates.reduce((sum, date) => sum + date.cartCost, 0)
+    updateFormData({
+      selectedDates: updatedDates,
+      cartServiceAmount: newTotalCost
     })
+  }
 
-    try {
-      const results = await Promise.all(availabilityPromises)
-      setSelectedDates(prev => prev.map(dateObj => {
-        const result = results.find(r => r.date === dateObj.date)
-        return result ? { ...dateObj, isAvailable: result.isAvailable, conflictingBooking: result.conflictingBooking } : dateObj
-      }))
-    } catch (error) {
-      console.error('Error checking multiple availability:', error)
-    } finally {
-      setCheckingAvailability(false)
-    }
+  const checkMultipleAvailability = (dates: BookingDate[]) => {
+    const updatedDates = dates.map(dateObj => {
+      const { isAvailable, conflictingBooking } = checkLocalAvailability(
+        dateObj.date, 
+        dateObj.startTime, 
+        dateObj.endTime
+      )
+      
+      return { ...dateObj, isAvailable, conflictingBooking }
+    })
+    
+    setSelectedDates(updatedDates)
+    
+    // Update form data immediately when availability changes
+    const newTotalCost = updatedDates.reduce((sum, date) => sum + date.cartCost, 0)
+    updateFormData({
+      selectedDates: updatedDates,
+      cartServiceAmount: newTotalCost
+    })
   }
 
   // Calculations
   const totalCost = selectedDates.reduce((sum, date) => sum + date.cartCost, 0)
-  const totalHours = selectedDates.reduce((sum, date) => sum + date.totalHours, 0)
+  const totalDays = selectedDates.length
 
   // Add or remove a date from selection
   const toggleDate = (dateStr: string) => {
@@ -201,6 +314,13 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
       const newDates = selectedDates.filter((_, i) => i !== existingIndex)
       setSelectedDates(newDates)
       
+      // Update form data immediately with new dates and total cost
+      const newTotalCost = newDates.reduce((sum, date) => sum + date.cartCost, 0)
+      updateFormData({
+        selectedDates: newDates,
+        cartServiceAmount: newTotalCost
+      })
+      
       // Clear time fields if removing the only date
       if (newDates.length === 0) {
         setStartTime('')
@@ -208,16 +328,35 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
       }
     } else {
       // Add date
+      const isFirstDate = selectedDates.length === 0
+      const startTimeValue = isFirstDate ? '' : '00:00' // Empty for first date - user must choose, full day for multi
+      const endTimeValue = isFirstDate ? '' : '23:59'
+      
       const newDate: BookingDate = {
         date: dateStr,
-        startTime: selectedDates.length === 0 ? '' : '00:00', // Empty for first date, 24h for multi
-        endTime: selectedDates.length === 0 ? '' : '23:59',
-        totalHours: selectedDates.length === 0 ? 0 : 24,
-        cartCost: selectedDates.length === 0 ? 0 : calculateCartCost(24),
-        isAvailable: selectedDates.length === 0 ? true : false // Will be checked if multi-day
+        startTime: startTimeValue,
+        endTime: endTimeValue,
+        totalHours: calculateTotalHours(startTimeValue, endTimeValue),
+        cartCost: isFirstDate ? 0 : calculateCartCost(), // No cost until times selected for first date
+        isAvailable: false // Will be properly checked when user selects times or if multi-day
       }
       
-      setSelectedDates([...selectedDates, newDate])
+      const newDates = [...selectedDates, newDate]
+      setSelectedDates(newDates)
+      
+      // Don't auto-set times for first date - let user choose manually
+      if (isFirstDate) {
+        // Keep local state empty for first date
+        setStartTime('')
+        setEndTime('')
+      }
+      
+      // Update form data immediately with new dates and total cost
+      const newTotalCost = newDates.reduce((sum, date) => sum + date.cartCost, 0)
+      updateFormData({
+        selectedDates: newDates,
+        cartServiceAmount: newTotalCost
+      })
     }
   }
 
@@ -225,12 +364,12 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
   const isValid = selectedDates.length > 0 && selectedDates.every(date => {
     if (isSingleDay) {
       // Single day needs custom times AND availability
-      return date.date && date.startTime && date.endTime && date.totalHours > 0 && date.isAvailable
+      return date.date && date.startTime && date.endTime && date.isAvailable
     } else {
-      // Multi-day automatically has 24h times AND availability
-      return date.date && date.totalHours === 24 && date.isAvailable
+      // Multi-day automatically has full day times AND availability
+      return date.date && date.isAvailable
     }
-  }) && (isSingleDay ? (startTime && endTime) : true) && !checkingAvailability
+  }) && (isSingleDay ? (startTime && endTime) : true) && !availabilityLoading
 
   // Calendar helper functions
   const getDaysInMonth = (date: Date) => {
@@ -253,10 +392,21 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
     const dateObj = selectedDates.find(d => d.date === dateStr)
     if (!dateObj) return null
     
-    if (checkingAvailability) return 'checking'
+    // For single day bookings, show pending_times if no times selected yet
+    if (isSingleDay && (!dateObj.startTime || !dateObj.endTime)) {
+      return 'pending_times'
+    }
+    
+    // Show checking if we're still loading bulk data and don't have cached info for this date
+    if (availabilityLoading && !cachedBookedDates[dateStr]) {
+      return 'checking'
+    }
+    
+    // FIXED: Simplified status logic - trust the availability that was set
     if (dateObj.conflictingBooking) return 'conflict'
     if (dateObj.isAvailable === false) return 'unavailable'
     if (dateObj.isAvailable === true) return 'available'
+    
     return 'unknown'
   }
 
@@ -273,7 +423,7 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
         bookingDate: firstDate.date,
         startTime: firstDate.startTime,
         endTime: firstDate.endTime,
-        totalHours: totalHours
+
       })
       
       onNext()
@@ -321,6 +471,8 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
           dateStyle = 'bg-teal-500 text-white shadow-lg ring-2 ring-teal-300'
         } else if (availabilityStatus === 'unavailable' || availabilityStatus === 'conflict') {
           dateStyle = 'bg-red-500 text-white shadow-lg ring-2 ring-red-300'
+        } else if (availabilityStatus === 'pending_times') {
+          dateStyle = 'bg-blue-500 text-white shadow-lg ring-2 ring-blue-300' // Blue for waiting for times
         } else {
           dateStyle = 'bg-gray-500 text-white shadow-lg ring-2 ring-gray-300'
         }
@@ -356,6 +508,7 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
               availabilityStatus === 'checking' ? 'bg-yellow-400 animate-pulse' :
               availabilityStatus === 'available' ? 'bg-green-400' :
               availabilityStatus === 'unavailable' || availabilityStatus === 'conflict' ? 'bg-red-400' :
+              availabilityStatus === 'pending_times' ? 'bg-blue-400' :
               'bg-gray-400'
             }`}>
               {availabilityStatus === 'checking' ? (
@@ -364,6 +517,8 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
                 <Check className="w-[0.8vh] lg:w-[0.4vw] h-[0.8vh] lg:h-[0.4vw] text-white" />
               ) : availabilityStatus === 'unavailable' || availabilityStatus === 'conflict' ? (
                 <X className="w-[0.8vh] lg:w-[0.4vw] h-[0.8vh] lg:h-[0.4vw] text-white" />
+              ) : availabilityStatus === 'pending_times' ? (
+                <Clock className="w-[0.8vh] lg:w-[0.4vw] h-[0.8vh] lg:h-[0.4vw] text-white" />
               ) : (
                 <div className="w-[0.6vh] lg:w-[0.3vw] h-[0.6vh] lg:h-[0.3vw] bg-white rounded-full"></div>
               )}
@@ -412,6 +567,29 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
         <div className="grid grid-cols-7 gap-[0.5vh] lg:gap-[0.25vw]">
           {days}
         </div>
+
+        {/* Availability Legend */}
+        <div className="mt-[1.5vh] lg:mt-[0.8vw] pt-[1.5vh] lg:pt-[0.8vw] border-t border-slate-600/50">
+          <h4 className="text-[1.2vh] lg:text-[0.6vw] text-gray-400 mb-[0.8vh] lg:mb-[0.4vw]">{t('availability_status')}:</h4>
+          <div className="grid grid-cols-2 gap-[0.8vh] lg:gap-[0.4vw] text-[1vh] lg:text-[0.5vw]">
+            <div className="flex items-center space-x-[0.5vh] lg:space-x-[0.25vw]">
+              <div className="w-[1vh] lg:w-[0.5vw] h-[1vh] lg:h-[0.5vw] rounded-full bg-blue-400"></div>
+              <span className="text-gray-300">{t('select_times')}</span>
+            </div>
+            <div className="flex items-center space-x-[0.5vh] lg:space-x-[0.25vw]">
+              <div className="w-[1vh] lg:w-[0.5vw] h-[1vh] lg:h-[0.5vw] rounded-full bg-yellow-400"></div>
+              <span className="text-gray-300">{t('checking_availability')}</span>
+            </div>
+            <div className="flex items-center space-x-[0.5vh] lg:space-x-[0.25vw]">
+              <div className="w-[1vh] lg:w-[0.5vw] h-[1vh] lg:h-[0.5vw] rounded-full bg-green-400"></div>
+              <span className="text-gray-300">{t('slot_available')}</span>
+            </div>
+            <div className="flex items-center space-x-[0.5vh] lg:space-x-[0.25vw]">
+              <div className="w-[1vh] lg:w-[0.5vw] h-[1vh] lg:h-[0.5vw] rounded-full bg-red-400"></div>
+              <span className="text-gray-300">{t('slot_unavailable')}</span>
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -453,39 +631,39 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
         <div className="bg-slate-800/40 border border-slate-600/50 rounded-lg p-[1.5vh] lg:p-[0.8vw] mx-auto max-w-[120vh] lg:max-w-[60vw] text-center">
           {checkingAvailability ? (
             <div className="text-yellow-400 animate-pulse text-[1.3vh] lg:text-[0.65vw] font-medium">
-              Verifying availability for your selected dates...
+              {t('verifying_availability')}
             </div>
           ) : (
             <div className="space-y-[0.5vh] lg:space-y-[0.25vw]">
               {isSingleDay ? (
                 selectedDates[0]?.isAvailable === false ? (
                   <div className="text-red-400 text-[1.3vh] lg:text-[0.65vw] font-medium">
-                    Time slot unavailable
+                    {t('time_slot_unavailable')}
                     {selectedDates[0]?.conflictingBooking && (
                       <div className="text-red-300 text-[1.1vh] lg:text-[0.55vw] mt-1 font-normal">
-                        This time period conflicts with an existing reservation
+                        {t('time_conflict_message')}
                       </div>
                     )}
                   </div>
                 ) : selectedDates[0]?.isAvailable === true ? (
                   <div className="text-green-400 text-[1.3vh] lg:text-[0.65vw] font-medium">
-                    Time slot confirmed as available
+                    {t('time_slot_available')}
                   </div>
                 ) : (
                   <div className="text-blue-400 text-[1.3vh] lg:text-[0.65vw] font-medium">
-                    Please configure your preferred time range
+                    {t('configure_time_range')}
                   </div>
                 )
               ) : (
                 <div className="text-[1.2vh] lg:text-[0.6vw]">
                   {selectedDates.filter(d => d.isAvailable === true).length > 0 && (
                     <div className="text-green-400 mb-1 font-medium">
-                      {selectedDates.filter(d => d.isAvailable === true).length} of {selectedDates.length} dates confirmed available
+                      {t('dates_available_count').replace('{available}', selectedDates.filter(d => d.isAvailable === true).length.toString()).replace('{total}', selectedDates.length.toString())}
                     </div>
                   )}
                   {selectedDates.filter(d => d.isAvailable === false).length > 0 && (
                     <div className="text-red-400 font-medium">
-                      {selectedDates.filter(d => d.isAvailable === false).length} dates currently unavailable
+                      {t('dates_unavailable_count').replace('{count}', selectedDates.filter(d => d.isAvailable === false).length.toString())}
                     </div>
                   )}
                 </div>
@@ -544,7 +722,7 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
                 </div>
                 <div>
                   <div className="text-teal-400 font-semibold text-[1.4vh] lg:text-[0.7vw]">
-                    {selectedDates[0].totalHours} hours
+                    1 day
                   </div>
                   <div className="text-gray-400 text-[1vh] lg:text-[0.5vw]">{t('duration')}</div>
                 </div>
@@ -562,8 +740,8 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
                   <div className="text-gray-400 text-[1vh] lg:text-[0.5vw]">{t('per_day')}</div>
                 </div>
                 <div className="bg-slate-700/50 rounded-lg p-[1vh] lg:p-[0.5vw]">
-                  <div className="text-teal-400 font-semibold text-[1.4vh] lg:text-[0.7vw]">{totalHours}h</div>
-                  <div className="text-gray-400 text-[1vh] lg:text-[0.5vw]">{t('total_hours')}</div>
+                  <div className="text-teal-400 font-semibold text-[1.4vh] lg:text-[0.7vw]">€{totalCost.toFixed(2)}</div>
+                  <div className="text-gray-400 text-[1vh] lg:text-[0.5vw]">{t('total_cost')}</div>
                 </div>
                 <div className="bg-slate-700/50 rounded-lg p-[1vh] lg:p-[0.5vw]">
                   <div className="text-teal-400 font-semibold text-[1.4vh] lg:text-[0.7vw]">00:00-23:59</div>
@@ -639,7 +817,7 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
                   <div className="bg-slate-700/50 rounded-lg p-[1.5vh] lg:p-[0.8vw]">
                     <div className="flex justify-between items-center">
                                 <span className="text-gray-300 text-[1vh] lg:text-[0.5vw]">{t('duration')}:</span>
-          <span className="text-teal-400 font-medium text-[1.2vh] lg:text-[0.6vw]">{currentSelectedDate.totalHours} {t('hours')}</span>
+          <span className="text-teal-400 font-medium text-[1.2vh] lg:text-[0.6vw]">{t('one_day')}</span>
                     </div>
                     <div className="flex justify-between items-center mt-[0.5vh] lg:mt-[0.25vw]">
                       <span className="text-gray-300 text-[1vh] lg:text-[0.5vw]">{t('cost')}:</span>
@@ -724,7 +902,7 @@ export default function DynamicTimingStep({ formData, updateFormData, onNext, on
             {selectedDates.length === 0 
               ? t('continue')
               : isSingleDay 
-              ? `${t('continue')} (1 ${t('day')}${startTime && endTime ? ', ' + currentSelectedDate.totalHours + 'h' : ''})`
+              ? `${t('continue')} (1 ${t('day')})`
               : `${t('continue')} (${selectedDates.length} ${t('days')}, 24h ${t('each')})`
             }
         </Button>

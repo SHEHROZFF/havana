@@ -33,8 +33,8 @@ model FoodCart {
   image       String?  @db.Text
   location    String
   isActive    Boolean  @default(true)
-  pricePerHour Float    // Keep for backward compatibility, now represents base price for up to 4 hours
-  extraHourPrice Float @default(0) // Price per extra hour beyond 4 hours
+  pricePerHour Float    // Now represents daily rate (renamed for compatibility)
+  extraHourPrice Float @default(0) // Extra hour pricing (legacy compatibility)
   shippingPrice Float @default(0) // Shipping/delivery price
   pickupAvailable Boolean @default(true) // Whether pickup is available
   shippingAvailable Boolean @default(true) // Whether shipping/delivery is available
@@ -74,7 +74,7 @@ model Service {
   id          String          @id @default(cuid())
   name        String          // "Waiter", "Chef", "Worker", etc.
   description String          @db.Text
-  pricePerHour Float
+  pricePerHour Float           // Now represents daily rate (keeping field name for compatibility)
   category    ServiceCategory
   isActive    Boolean         @default(true)
   cartId      String?         // Optional: service specific to a cart (null = global)
@@ -155,6 +155,11 @@ model Booking {
   paymentMethod String?
   transactionId String?
   
+  // Coupon information
+  couponCode String?          // Applied coupon code
+  discountAmount Float @default(0) // Discount amount applied
+  originalAmount Float?        // Original amount before discount
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -164,6 +169,7 @@ model Booking {
   bookingServices BookingService[]
   bookingDates BookingDate[] // NEW: Multiple dates per booking
   paymentSlip  PaymentSlip?
+  couponUsage  CouponUsage?  // Coupon used in this booking
 
   @@map("bookings")
 }
@@ -255,6 +261,17 @@ enum SlipStatus {
   REJECTED    // Admin rejected the payment
 }
 
+enum CouponType {
+  PERCENTAGE      // Discount by percentage (e.g., 10%)
+  FIXED_AMOUNT    // Discount by fixed amount (e.g., €50)
+}
+
+enum CouponStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+}
+
 // Payment configuration stored by admin
 model PaymentConfig {
   id          String   @id @default(cuid())
@@ -301,4 +318,47 @@ model PaymentSlip {
   booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@map("payment_slips")
+}
+
+// Coupon system for discounts
+model Coupon {
+  id            String       @id @default(cuid())
+  code          String       @unique // Coupon code (e.g., "SAVE20", "WELCOME50")
+  name          String       // Human-readable name for admin
+  description   String?      @db.Text // Description of the coupon
+  type          CouponType   // PERCENTAGE or FIXED_AMOUNT
+  value         Float        // Discount value (percentage or fixed amount)
+  minOrderAmount Float?      // Minimum order amount required
+  maxDiscount   Float?       // Maximum discount amount (for percentage coupons)
+  usageLimit    Int?         // Maximum number of times this coupon can be used (null = unlimited)
+  usageCount    Int          @default(0) // Current usage count
+  validFrom     DateTime     // When coupon becomes valid
+  validUntil    DateTime     // When coupon expires
+  status        CouponStatus @default(ACTIVE)
+  applicableToCartIds String? @db.Text // JSON array of cart IDs this coupon applies to (null = all carts)
+  applicableToServiceIds String? @db.Text // JSON array of service IDs this coupon applies to (null = all services)
+  createdBy     String?      // Admin user who created this coupon
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  // Relations
+  usages        CouponUsage[]
+
+  @@map("coupons")
+}
+
+// Track coupon usage by customers
+model CouponUsage {
+  id         String   @id @default(cuid())
+  couponId   String
+  bookingId  String   @unique // Each booking can only use one coupon
+  customerEmail String // Track usage by customer email
+  discountAmount Float // Actual discount applied
+  usedAt     DateTime @default(now())
+
+  // Relations
+  coupon     Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("coupon_usages")
 }

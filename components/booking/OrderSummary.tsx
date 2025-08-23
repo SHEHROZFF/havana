@@ -34,18 +34,15 @@ export default function OrderSummary({ formData, className }: OrderSummaryProps)
     // Calculate cart cost from multiple dates or single date
     let cartTotal = 0
     let totalDays = 0
-    let totalHours = 0
     
     if (formData.selectedDates && formData.selectedDates.length > 0) {
       // Multiple dates mode
       cartTotal = formData.selectedDates.reduce((sum, date) => sum + date.cartCost, 0)
       totalDays = formData.selectedDates.length
-      totalHours = formData.selectedDates.reduce((sum, date) => sum + date.totalHours, 0)
     } else {
       // Legacy single date mode
       cartTotal = formData.cartServiceAmount || 0
       totalDays = cartTotal > 0 ? 1 : 0
-      totalHours = formData.totalHours || 0
     }
     
     total += cartTotal
@@ -62,7 +59,6 @@ export default function OrderSummary({ formData, className }: OrderSummaryProps)
       total,
       itemCount,
       totalDays,
-      totalHours,
       hasFoodItems: (formData.selectedItems || []).length > 0,
       hasServices: (formData.selectedServices || []).length > 0,
       hasCart: !!formData.selectedCartId && cartTotal > 0,
@@ -100,7 +96,7 @@ export default function OrderSummary({ formData, className }: OrderSummaryProps)
               </div>
               {summary.hasMultipleDates && (
                 <div className="text-[1.2vh] lg:text-[0.6vw] text-gray-400 mt-[0.5vh] lg:mt-[0.25vw]">
-                  Total: {summary.totalHours} hours across {summary.totalDays} days
+                  Total: {summary.totalDays} days
                 </div>
               )}
             </div>

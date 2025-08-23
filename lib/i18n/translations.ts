@@ -449,6 +449,57 @@ export const translations = {
     cash_payment_on_delivery_pickup: 'Πληρωμή με μετρητά κατά την παράδοση/παραλαβή',
     reservation_subject_to_confirmation: 'Σημείωση: Η κράτησή σας υπόκειται σε επιβεβαίωση και διαθεσιμότητα',
     complete_reservation: 'Ολοκλήρωση Κράτησης',
+    
+    // Payment Success Modal - NEW translations for modal only
+    bank_transfer_success_title: 'Η κράτηση δημιουργήθηκε επιτυχώς!',
+    reservation_success_title: 'Η κράτηση δημιουργήθηκε επιτυχώς!',
+    paypal_success_title: 'Η πληρωμή ολοκληρώθηκε επιτυχώς!',
+    
+    payment_success_message: 'Σας ευχαριστούμε για την κράτησή σας στο Havana Van Bar!',
+    bank_transfer_success_message: 'Θα επικοινωνήσουμε μαζί σας για την επιβεβαίωση της πληρωμής.',
+    reservation_success_message: 'Θα επικοινωνήσουμε μαζί σας για τις λεπτομέρειες της πληρωμής.',
+    paypal_success_message: 'Η πληρωμή σας έχει επεξεργαστεί επιτυχώς.',
+    
+    selected_cart: 'Επιλεγμένο Van',
+    event_date: 'Ημερομηνία Εκδήλωσης',
+    
+    bank_transfer_next_steps: 'Επόμενα βήματα',
+    admin_will_verify_payment: 'Ο διαχειριστής θα επιβεβαιώσει την πληρωμή σας σύντομα.',
+    
+    visit_website: 'Επίσκεψη στο Havana.gr',
+    auto_redirect_message: 'Θα μεταφερθείτε αυτόματα στον ιστότοπο σε 30 δευτερόλεπτα.',
+    
+    // Payment method specific translations for modal
+    payment_method_bank_transfer: 'Τραπεζικό Έμβασμα',
+    payment_method_reservation: 'Κράτηση',
+    payment_method_unknown: 'Άγνωστη',
+    
+    // Cart and Date Selection translations - NEW ONLY
+    one_day: '1 Ημέρα',
+    availability_status: 'Κατάσταση Διαθεσιμότητας',
+    select_times: 'Επιλέξτε Ώρες',
+    checking_availability: 'Έλεγχος',
+    slot_available: 'Διαθέσιμο',
+    slot_unavailable: 'Μη Διαθέσιμο',
+    time_slot_available: 'Το χρονικό διάστημα είναι διαθέσιμο',
+    configure_time_range: 'Παρακαλώ διαμορφώστε το προτιμώμενο χρονικό διάστημα',
+    verifying_availability: 'Επαλήθευση διαθεσιμότητας για τις επιλεγμένες ημερομηνίες...',
+    dates_available_count: '{available} από {total} ημερομηνίες επιβεβαιώθηκαν διαθέσιμες',
+    dates_unavailable_count: '{count} ημερομηνίες δεν είναι διαθέσιμες αυτή τη στιγμή',
+    
+    // Coupon System translations - NEW
+    have_coupon: 'Έχετε Κουπόνι;',
+    enter_coupon_code: 'Εισάγετε κωδικό κουπονιού',
+    apply_coupon: 'Εφαρμογή Κουπονιού',
+    validating: 'Επαλήθευση...',
+    coupon_discount: 'Έκπτωση Κουπονιού',
+    subtotal: 'Υποσύνολο',
+    coupon_applied: 'Το Κουπόνι Εφαρμόστηκε',
+    coupon_removed: 'Το Κουπόνι Αφαιρέθηκε',
+    invalid_coupon: 'Μη έγκυρος κωδικός κουπονιού',
+    coupon_expired: 'Αυτό το κουπόνι έχει λήξει',
+    coupon_usage_limit: 'Αυτό το κουπόνι έχει φτάσει το όριο χρήσης του',
+    minimum_order_not_met: 'Δεν πληρείται το ελάχιστο ποσό παραγγελίας',
   },
 
   // English
@@ -902,5 +953,56 @@ export const translations = {
     cash_payment_on_delivery_pickup: 'Cash payment on delivery/pickup',
     reservation_subject_to_confirmation: 'Note: Your reservation is subject to confirmation and availability',
     complete_reservation: 'Complete Reservation',
+    
+    // Payment Success Modal - NEW translations for modal only
+    bank_transfer_success_title: 'Booking created successfully!',
+    reservation_success_title: 'Booking created successfully!',
+    paypal_success_title: 'Payment completed successfully!',
+    
+    payment_success_message: 'Thank you for your booking at Havana Van Bar!',
+    bank_transfer_success_message: 'We will contact you to confirm your payment.',
+    reservation_success_message: 'We will contact you regarding payment details.',
+    paypal_success_message: 'Your payment has been processed successfully.',
+    
+    selected_cart: 'Selected Van',
+    event_date: 'Event Date',
+    
+    bank_transfer_next_steps: 'Next Steps',
+    admin_will_verify_payment: 'Admin will verify your payment shortly.',
+    
+    visit_website: 'Visit Havana.gr',
+    auto_redirect_message: 'You will be automatically redirected to the website in 30 seconds.',
+    
+    // Payment method specific translations for modal
+    payment_method_bank_transfer: 'Bank Transfer',
+    payment_method_reservation: 'Reservation',
+    payment_method_unknown: 'Unknown',
+    
+    // Cart and Date Selection translations - NEW ONLY
+    one_day: '1 Day',
+    availability_status: 'Availability Status',
+    select_times: 'Select Times',
+    checking_availability: 'Checking',
+    slot_available: 'Available',
+    slot_unavailable: 'Unavailable',
+    time_slot_available: 'Time slot confirmed as available',
+    configure_time_range: 'Please configure your preferred time range',
+    verifying_availability: 'Verifying availability for your selected dates...',
+    dates_available_count: '{available} of {total} dates confirmed available',
+    dates_unavailable_count: '{count} dates currently unavailable',
+    
+    // Coupon System translations - NEW
+    have_coupon: 'Have a Coupon?',
+    enter_coupon_code: 'Enter coupon code',
+    apply_coupon: 'Apply Coupon',
+    validating: 'Validating...',
+    coupon_discount: 'Coupon Discount',
+    subtotal: 'Subtotal',
+    coupon_applied: 'Coupon Applied',
+    coupon_removed: 'Coupon Removed',
+    invalid_coupon: 'Invalid coupon code',
+    coupon_expired: 'This coupon has expired',
+    coupon_usage_limit: 'This coupon has reached its usage limit',
+    minimum_order_not_met: 'Minimum order amount not met',
   }
 } as const

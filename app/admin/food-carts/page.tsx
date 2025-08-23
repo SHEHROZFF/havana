@@ -19,7 +19,6 @@ export default function FoodCartsPage() {
     description: '',
     location: '',
     pricePerHour: 0,
-    extraHourPrice: 0,
     shippingPrice: 0,
     pickupAvailable: true,
     shippingAvailable: true,
@@ -53,7 +52,6 @@ export default function FoodCartsPage() {
         description: '',
         location: '',
         pricePerHour: 0,
-        extraHourPrice: 0,
         shippingPrice: 0,
         pickupAvailable: true,
         shippingAvailable: true,
@@ -170,23 +168,15 @@ export default function FoodCartsPage() {
                 required
               />
 
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-2 gap-4">
                 <Input
-                  label={t('base_price_label')}
+                  label="Daily Price"
                   type="number"
                   value={newCart.pricePerHour}
                   onChange={(e) => setNewCart({ ...newCart, pricePerHour: parseFloat(e.target.value) || 0 })}
-                  placeholder={t('base_price_placeholder')}
-                  helperText={t('base_price_helper')}
+                  placeholder="150.00"
+                  helperText="Flat rate per day regardless of hours"
                   required
-                />
-                <Input
-                  label={t('extra_hour_price_label')}
-                  type="number"
-                  value={newCart.extraHourPrice}
-                  onChange={(e) => setNewCart({ ...newCart, extraHourPrice: parseFloat(e.target.value) || 0 })}
-                  placeholder={t('extra_hour_price_placeholder')}
-                  helperText={t('extra_hour_price_helper')}
                 />
                 <Input
                   label={t('shipping_price_label')}
@@ -280,8 +270,7 @@ export default function FoodCartsPage() {
                 name: formData.get('name') as string,
                 description: formData.get('description') as string,
                 location: formData.get('location') as string,
-                pricePerHour: parseFloat(formData.get('pricePerHour') as string),
-                extraHourPrice: parseFloat(formData.get('extraHourPrice') as string) || 0,
+                pricePerHour: parseFloat(formData.get('pricePerDay') as string),
                 shippingPrice: parseFloat(formData.get('shippingPrice') as string) || 0,
                 capacity: parseInt(formData.get('capacity') as string),
                 image: formData.get('image') as string,
@@ -313,23 +302,15 @@ export default function FoodCartsPage() {
                 required
               />
 
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-2 gap-4">
                 <Input
-                  name="pricePerHour"
-                  label={t('base_price_label')}
+                  name="pricePerDay"
+                  label="Daily Price"
                   type="number"
-                  defaultValue={editingCart.pricePerHour}
-                  placeholder={t('base_price_placeholder')}
-                  helperText={t('base_price_helper')}
+                  defaultValue={editingCart.pricePerHour || 0}
+                  placeholder="150.00"
+                  helperText="Flat rate per day regardless of hours"
                   required
-                />
-                <Input
-                  name="extraHourPrice"
-                  label={t('extra_hour_price_label')}
-                  type="number"
-                  defaultValue={editingCart.extraHourPrice || 0}
-                  placeholder={t('extra_hour_price_placeholder')}
-                  helperText={t('extra_hour_price_helper')}
                 />
                 <Input
                   name="shippingPrice"
@@ -460,16 +441,9 @@ export default function FoodCartsPage() {
                   <p className="text-gray-300 text-sm line-clamp-2">{cart.description}</p>
                   
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">{t('base_price_display')}</span>
-                    <span className="text-white font-medium">€{cart.pricePerHour}</span>
+                    <span className="text-gray-400">Daily Price</span>
+                    <span className="text-white font-medium">€{(cart.pricePerHour || 0).toFixed(2)}</span>
                   </div>
-                  
-                  {cart.extraHourPrice > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">{t('extra_hour_price_display')}</span>
-                      <span className="text-white font-medium">€{cart.extraHourPrice}/hr</span>
-                    </div>
-                  )}
                   
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-400">{t('shipping_price_display')}</span>

@@ -5,8 +5,7 @@ export interface FoodCart {
   image?: string
   location?: string
   cuisine?: string
-  pricePerHour: number // Base price for up to 4 hours
-  extraHourPrice: number // Price per extra hour beyond 4 hours
+  pricePerHour: number // Now represents daily rate (keeping field name for compatibility)
   capacity: number
   isActive: boolean
   features?: string[]
@@ -34,7 +33,7 @@ export interface Service {
   id: string
   name: string
   description: string
-  pricePerHour: number // Keep this name for database compatibility but represents fixed price
+  pricePerHour: number // Now represents daily rate (keeping field name for compatibility)
   category: ServiceCategory
   isActive: boolean
   cartId?: string
@@ -60,6 +59,12 @@ export interface Booking {
   totalHours: number
   totalAmount: number
   status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED'
+  
+  // Coupon information
+  couponCode?: string
+  appliedCoupon?: any // Full coupon object for validation
+  discountAmount?: number
+  originalAmount?: number
   eventType: string
   guestCount: number
   specialNotes?: string
@@ -91,8 +96,8 @@ export interface BookingDate {
   date: string
   startTime: string
   endTime: string
-  totalHours: number
-  cartCost: number
+  totalHours: number // Hours for this specific date
+  cartCost: number // Daily rate cost for this date
   isAvailable: boolean
   conflictingBooking?: any
 }
@@ -155,6 +160,12 @@ export interface BookingFormData {
   foodAmount: number
   paymentMethod: string
   paymentSlipUrl?: string // Payment slip URL for bank transfers
+  
+  // Coupon information
+  couponCode?: string
+  appliedCoupon?: any // Full coupon object for validation
+  discountAmount?: number
+  originalAmount?: number
 }
 
 export interface TimeSlot {
