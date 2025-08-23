@@ -5,14 +5,14 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({
-  // Configure connection pooling for better connection management in production
-  datasources: {
-    db: {
-      url: process.env.NODE_ENV === 'production' 
-        ? `${process.env.DATABASE_URL}?connection_limit=10&pool_timeout=20`
-        : process.env.DATABASE_URL
+  // Only configure custom datasources in production (let Prisma use schema.prisma in dev)
+  ...(process.env.NODE_ENV === 'production' && process.env.DATABASE_URL ? {
+    datasources: {
+      db: {
+        url: `${process.env.DATABASE_URL}?connection_limit=10&pool_timeout=20`
+      }
     }
-  },
+  } : {}),
   // Enable logging for debugging
   log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
 })
