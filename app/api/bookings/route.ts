@@ -465,17 +465,12 @@ export async function POST(request: NextRequest) {
         where: { bookingId: newBooking.id }
       })
 
-      // OPTIMIZATION 5: Optimize coupon validation - combine coupon fetch with usage count
+      // CRITICAL: Re-validate and apply coupon if provided (REVERTED TO WORKING VERSION)
       if (couponCode && discountAmount > 0) {
-        // Find the coupon with usage count in a single query  
-        const [coupon, currentUsageCount] = await Promise.all([
-          tx.coupon.findUnique({
-            where: { code: couponCode.toUpperCase() }
-          }),
-          tx.couponUsage.count({
-            where: { couponId: { not: null } } // Will be filtered after coupon fetch
-          })
-        ])
+        // Find the coupon
+        const coupon = await tx.coupon.findUnique({
+          where: { code: couponCode.toUpperCase() }
+        })
         
         if (!coupon) {
           throw new Error('Invalid coupon code')
@@ -494,11 +489,11 @@ export async function POST(request: NextRequest) {
         
         // CRITICAL: Check usage limit in real-time to prevent multiple usage
         if (coupon.usageLimit) {
-          const realUsageCount = await tx.couponUsage.count({
+          const currentUsageCount = await tx.couponUsage.count({
             where: { couponId: coupon.id }
           })
           
-          if (realUsageCount >= coupon.usageLimit) {
+          if (currentUsageCount >= coupon.usageLimit) {
             throw new Error('This coupon has reached its usage limit')
           }
         }
