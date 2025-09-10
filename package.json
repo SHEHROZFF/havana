@@ -9,9 +9,11 @@
     "lint": "next lint",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "node": "node server.js"
   },
   "dependencies": {
+    "-": "^0.0.1",
     "@paypal/checkout-server-sdk": "^1.0.3",
     "@paypal/react-paypal-js": "^8.8.3",
     "@prisma/client": "^6.13.0",
