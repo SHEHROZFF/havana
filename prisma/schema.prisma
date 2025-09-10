@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = "mysql://u648271573_havana:Simple@0320@srv1647.hstgr.io:3306/u648271573_booking"
+  url      = env("DATABASE_URL")
 }
 
 // User model for authentication
