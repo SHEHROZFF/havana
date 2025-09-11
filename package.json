@@ -10,7 +10,8 @@
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "node": "node server.js"
+    "node": "node server.js",
+    "db:pull": "prisma db pull"
   },
   "dependencies": {
     "-": "^0.0.1",
