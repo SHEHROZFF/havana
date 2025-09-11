@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,224 +7,277 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User model for authentication
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
+  id        String    @id @default(cuid())
+  email     String    @unique
   name      String
   phone     String?
-  role      UserRole @default(CUSTOMER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  bookings Booking[]
+  role      UserRole  @default(CUSTOMER)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  bookings  Booking[]
 
   @@map("users")
 }
 
-// Food Cart model
 model FoodCart {
-  id          String   @id @default(cuid())
-  name        String
-  description String   @db.Text
-  image       String?  @db.Text
-  location    String
-  isActive    Boolean  @default(true)
-  pricePerHour Float    // Now represents daily rate (renamed for compatibility)
-  extraHourPrice Float @default(0) // Extra hour pricing (legacy compatibility)
-  shippingPrice Float @default(0) // Shipping/delivery price
-  pickupAvailable Boolean @default(true) // Whether pickup is available
-  shippingAvailable Boolean @default(true) // Whether shipping/delivery is available
-  capacity    Int      @default(50) // max people this cart can serve food to
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  foodItems FoodItem[]
-  bookings  Booking[]
-  availability CartAvailability[]
-  services  Service[]
+  id                String             @id @default(cuid())
+  name              String
+  description       String             @db.Text
+  image             String?            @db.Text
+  location          String
+  isActive          Boolean            @default(true)
+  pricePerHour      Float
+  extraHourPrice    Float              @default(0)
+  capacity          Int                @default(50)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  pickupAvailable   Boolean            @default(true)
+  shippingAvailable Boolean            @default(true)
+  shippingPrice     Float              @default(0)
+  bookings          Booking[]
+  availability      CartAvailability[]
+  foodItems         FoodItem[]
+  services          Service[]
 
   @@map("food_carts")
 }
 
-// Food Items available in each cart
 model FoodItem {
-  id          String   @id @default(cuid())
-  name        String
-  description String   @db.Text
-  price       Float
-  image       String?  @db.Text
-  category    String
-  isAvailable Boolean  @default(true)
-  cartId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  cart         FoodCart       @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  id           String        @id @default(cuid())
+  name         String
+  description  String        @db.Text
+  price        Float
+  image        String?       @db.Text
+  category     String
+  isAvailable  Boolean       @default(true)
+  cartId       String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   bookingItems BookingItem[]
+  cart         FoodCart      @relation(fields: [cartId], references: [id], onDelete: Cascade)
 
+  @@index([cartId], map: "food_items_cartId_fkey")
   @@map("food_items")
 }
 
-// Services available for each cart
 model Service {
-  id          String          @id @default(cuid())
-  name        String          // "Waiter", "Chef", "Worker", etc.
-  description String          @db.Text
-  pricePerHour Float           // Now represents daily rate (keeping field name for compatibility)
-  category    ServiceCategory
-  isActive    Boolean         @default(true)
-  cartId      String?         // Optional: service specific to a cart (null = global)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-
-  cart            FoodCart?       @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  id              String           @id @default(cuid())
+  name            String
+  description     String           @db.Text
+  pricePerHour    Float
+  category        ServiceCategory
+  isActive        Boolean          @default(true)
+  cartId          String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   bookingServices BookingService[]
+  cart            FoodCart?        @relation(fields: [cartId], references: [id], onDelete: Cascade)
 
+  @@index([cartId], map: "services_cartId_fkey")
   @@map("services")
 }
 
-// Cart availability schedule
 model CartAvailability {
   id        String   @id @default(cuid())
   cartId    String
   date      DateTime @db.Date
-  startTime String   // "09:00"
-  endTime   String   // "18:00"
+  startTime String
+  endTime   String
   isBooked  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  cart FoodCart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  cart      FoodCart @relation(fields: [cartId], references: [id], onDelete: Cascade)
 
   @@unique([cartId, date, startTime])
   @@map("cart_availability")
 }
 
-// Main booking model - One booking can have multiple dates
 model Booking {
-  id          String        @id @default(cuid())
-  userId      String?       // Optional since we're not managing users
-  cartId      String
-  
-  // Legacy fields for backward compatibility (will use first BookingDate if available)
-  bookingDate DateTime?     @db.Date
-  startTime   String?       // "14:00" - Now user customizable
-  endTime     String?       // "18:00" - Now user customizable
-  totalHours  Int?          // Calculated from custom times
-  
-  totalAmount Float
-  status      BookingStatus @default(PENDING)
-  
-  // Enhanced timing options
-  isCustomTiming Boolean @default(true)  // True for custom times, false for preset slots
-  timeSlotType  String?                  // "morning", "afternoon", "evening" for preset slots, or "multi-day-24h"
-  
-  // Enhanced pricing breakdown
-  cartServiceAmount Float @default(0)    // Amount for cart rental
-  servicesAmount    Float @default(0)    // Amount for additional services
-  foodAmount        Float @default(0)    // Amount for food items
-  
-  // Customer information
-  customerFirstName String
-  customerLastName  String
+  id                String           @id @default(cuid())
+  userId            String?
+  cartId            String
+  bookingDate       DateTime?        @db.Date
+  startTime         String?
+  endTime           String?
+  totalHours        Int?
+  totalAmount       Float
+  status            BookingStatus    @default(PENDING)
+  isCustomTiming    Boolean          @default(true)
+  timeSlotType      String?
+  cartServiceAmount Float            @default(0)
+  servicesAmount    Float            @default(0)
+  foodAmount        Float            @default(0)
   customerEmail     String
   customerPhone     String
+  eventType         String?
+  guestCount        Int
+  specialNotes      String?          @db.Text
+  paymentStatus     PaymentStatus    @default(PENDING)
+  paymentMethod     String?
+  transactionId     String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deliveryMethod    String           @default("pickup")
+  shippingAddress   String?
+  shippingAmount    Float            @default(0)
+  shippingCity      String?
+  shippingState     String?
+  shippingZip       String?
   customerAddress   String
   customerCity      String
+  customerCountry   String           @default("United States")
+  customerFirstName String
+  customerLastName  String
   customerState     String
   customerZip       String
-  customerCountry   String   @default("United States")
-  eventType         String?  // birthday, wedding, corporate, etc.
-  guestCount        Int
-  specialNotes      String?  @db.Text
-  
-  // Delivery information
-  deliveryMethod String       @default("pickup") // "pickup" or "shipping"
-  shippingAddress String?
-  shippingCity   String?
-  shippingState  String?
-  shippingZip    String?
-  shippingAmount Float        @default(0)
-  
-  // Payment information
-  paymentStatus PaymentStatus @default(PENDING)
-  paymentMethod String?
-  transactionId String?
-  
-  // Coupon information
-  couponCode String?          // Applied coupon code
-  discountAmount Float @default(0) // Discount amount applied
-  originalAmount Float?        // Original amount before discount
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  couponCode        String?
+  discountAmount    Float            @default(0)
+  originalAmount    Float?
+  bookingDates      BookingDate[]
+  bookingItems      BookingItem[]
+  bookingServices   BookingService[]
+  cart              FoodCart         @relation(fields: [cartId], references: [id])
+  user              User?            @relation(fields: [userId], references: [id])
+  couponUsage       CouponUsage?
+  paymentSlip       PaymentSlip?
 
-  user         User?         @relation(fields: [userId], references: [id])
-  cart         FoodCart      @relation(fields: [cartId], references: [id])
-  bookingItems BookingItem[]
-  bookingServices BookingService[]
-  bookingDates BookingDate[] // NEW: Multiple dates per booking
-  paymentSlip  PaymentSlip?
-  couponUsage  CouponUsage?  // Coupon used in this booking
-
+  @@index([cartId], map: "bookings_cartId_fkey")
+  @@index([userId], map: "bookings_userId_fkey")
   @@map("bookings")
 }
 
-// Booking dates - Multiple dates can belong to one booking
 model BookingDate {
   id          String   @id @default(cuid())
   bookingId   String
   date        DateTime @db.Date
-  startTime   String   // "14:00"
-  endTime     String   // "18:00" 
-  totalHours  Int      // Hours for this specific date
-  cartCost    Float    // Cost for this specific date
+  startTime   String
+  endTime     String
+  totalHours  Int
+  cartCost    Float
   isAvailable Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
-  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-
-  @@unique([bookingId, date, startTime]) // Prevent duplicate time slots for same booking
+  @@unique([bookingId, date, startTime])
   @@map("booking_dates")
 }
 
-// Items ordered in each booking
 model BookingItem {
   id         String   @id @default(cuid())
   bookingId  String
   foodItemId String
   quantity   Int
-  price      Float    // price at time of booking
+  price      Float
   createdAt  DateTime @default(now())
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  foodItem   FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Cascade)
 
-  booking  Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  foodItem FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Cascade)
-
+  @@index([bookingId], map: "booking_items_bookingId_fkey")
+  @@index([foodItemId], map: "booking_items_foodItemId_fkey")
   @@map("booking_items")
 }
 
-
-
-// Services selected for each booking
 model BookingService {
-  id        String   @id @default(cuid())
-  bookingId String
-  serviceId String
-  quantity  Int      @default(1) // number of staff for this service
-  hours     Int      // hours booked for this service
-  pricePerHour Float // price per hour at time of booking
-  totalPrice Float   // quantity * hours * pricePerHour
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  bookingId    String
+  serviceId    String
+  quantity     Int      @default(1)
+  hours        Int
+  pricePerHour Float
+  totalPrice   Float
+  createdAt    DateTime @default(now())
+  booking      Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  service      Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
-  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-
+  @@index([bookingId], map: "booking_services_bookingId_fkey")
+  @@index([serviceId], map: "booking_services_serviceId_fkey")
   @@map("booking_services")
 }
 
-// Enums
+model PaymentConfig {
+  id           String   @id @default(cuid())
+  environment  String   @default("live")
+  clientId     String
+  clientSecret String
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  @@map("payment_config")
+}
+
+model BankConfig {
+  id            String   @id @default(cuid())
+  bankName      String
+  accountHolder String
+  iban          String
+  swiftCode     String?
+  accountNumber String?
+  bankAddress   String?
+  instructions  String?  @db.Text
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("bank_config")
+}
+
+model PaymentSlip {
+  id         String     @id @default(cuid())
+  bookingId  String     @unique
+  fileName   String
+  filePath   String
+  fileSize   Int
+  mimeType   String
+  uploadedAt DateTime   @default(now())
+  verifiedAt DateTime?
+  verifiedBy String?
+  status     SlipStatus @default(PENDING)
+  adminNotes String?    @db.Text
+  booking    Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("payment_slips")
+}
+
+model Coupon {
+  id                     String        @id @default(cuid())
+  code                   String        @unique
+  name                   String
+  description            String?       @db.Text
+  type                   CouponType
+  value                  Float
+  minOrderAmount         Float?
+  maxDiscount            Float?
+  usageLimit             Int?
+  usageCount             Int           @default(0)
+  validFrom              DateTime
+  validUntil             DateTime
+  status                 CouponStatus  @default(ACTIVE)
+  applicableToCartIds    String?       @db.Text
+  applicableToServiceIds String?       @db.Text
+  createdBy              String?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+  usages                 CouponUsage[]
+
+  @@map("coupons")
+}
+
+model CouponUsage {
+  id             String   @id @default(cuid())
+  couponId       String
+  bookingId      String   @unique
+  customerEmail  String
+  discountAmount Float
+  usedAt         DateTime @default(now())
+  booking        Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  coupon         Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+
+  @@index([couponId], map: "coupon_usages_couponId_fkey")
+  @@map("coupon_usages")
+}
+
 enum UserRole {
   ADMIN
   CUSTOMER
@@ -248,117 +298,26 @@ enum PaymentStatus {
 }
 
 enum ServiceCategory {
-  STAFF       // Waiters, servers
-  KITCHEN     // Chefs, cooks
-  SUPPORT     // Workers, setup crew
-  MANAGEMENT  // Event coordinators
-  SPECIAL     // Special services
+  STAFF
+  KITCHEN
+  SUPPORT
+  MANAGEMENT
+  SPECIAL
 }
 
 enum SlipStatus {
-  PENDING     // Uploaded, waiting for verification
-  VERIFIED    // Admin verified the payment
-  REJECTED    // Admin rejected the payment
+  PENDING
+  VERIFIED
+  REJECTED
 }
 
 enum CouponType {
-  PERCENTAGE      // Discount by percentage (e.g., 10%)
-  FIXED_AMOUNT    // Discount by fixed amount (e.g., €50)
+  PERCENTAGE
+  FIXED_AMOUNT
 }
 
 enum CouponStatus {
   ACTIVE
   INACTIVE
   EXPIRED
-}
-
-// Payment configuration stored by admin
-model PaymentConfig {
-  id          String   @id @default(cuid())
-  environment String   @default("live") // "live" or "sandbox"
-  clientId    String
-  clientSecret String
-  updatedAt   DateTime @updatedAt
-  createdAt   DateTime @default(now())
-
-  @@map("payment_config")
-}
-
-// Bank transfer configuration
-model BankConfig {
-  id              String   @id @default(cuid())
-  bankName        String
-  accountHolder   String
-  iban            String
-  swiftCode       String?
-  accountNumber   String?
-  bankAddress     String?
-  instructions    String?  @db.Text
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@map("bank_config")
-}
-
-// Payment slip uploads for bank transfers
-model PaymentSlip {
-  id            String        @id @default(cuid())
-  bookingId     String        @unique
-  fileName      String
-  filePath      String
-  fileSize      Int
-  mimeType      String
-  uploadedAt    DateTime      @default(now())
-  verifiedAt    DateTime?
-  verifiedBy    String?       // Admin user ID who verified
-  status        SlipStatus    @default(PENDING)
-  adminNotes    String?       @db.Text
-  
-  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-
-  @@map("payment_slips")
-}
-
-// Coupon system for discounts
-model Coupon {
-  id            String       @id @default(cuid())
-  code          String       @unique // Coupon code (e.g., "SAVE20", "WELCOME50")
-  name          String       // Human-readable name for admin
-  description   String?      @db.Text // Description of the coupon
-  type          CouponType   // PERCENTAGE or FIXED_AMOUNT
-  value         Float        // Discount value (percentage or fixed amount)
-  minOrderAmount Float?      // Minimum order amount required
-  maxDiscount   Float?       // Maximum discount amount (for percentage coupons)
-  usageLimit    Int?         // Maximum number of times this coupon can be used (null = unlimited)
-  usageCount    Int          @default(0) // Current usage count
-  validFrom     DateTime     // When coupon becomes valid
-  validUntil    DateTime     // When coupon expires
-  status        CouponStatus @default(ACTIVE)
-  applicableToCartIds String? @db.Text // JSON array of cart IDs this coupon applies to (null = all carts)
-  applicableToServiceIds String? @db.Text // JSON array of service IDs this coupon applies to (null = all services)
-  createdBy     String?      // Admin user who created this coupon
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-
-  // Relations
-  usages        CouponUsage[]
-
-  @@map("coupons")
-}
-
-// Track coupon usage by customers
-model CouponUsage {
-  id         String   @id @default(cuid())
-  couponId   String
-  bookingId  String   @unique // Each booking can only use one coupon
-  customerEmail String // Track usage by customer email
-  discountAmount Float // Actual discount applied
-  usedAt     DateTime @default(now())
-
-  // Relations
-  coupon     Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
-  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-
-  @@map("coupon_usages")
 }
