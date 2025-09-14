@@ -11,7 +11,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "node": "node server.js",
-    "db:pull": "prisma db pull"
+    "db:pull": "prisma db pull",
+    "test": "node setup-env.js"
   },
   "dependencies": {
     "-": "^0.0.1",
